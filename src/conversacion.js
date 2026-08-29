@@ -165,6 +165,8 @@ async function manejarMensaje(numero, textoOriginal) {
       return desactivarRecordatorios(numero);
     case "configurar_hora":
       return configurarHora(numero, intencion.hora);
+    case "fuera_de_tema":
+      return responder(numero, "Lo siento, no puedo ayudarte con eso 🙏 Solo puedo ayudarte con los pagos de la empresa y sus recordatorios. Escribe *ayuda* si quieres ver qué puedo hacer.");
     default:
       return responder(numero, whatsapp.AYUDA);
   }
