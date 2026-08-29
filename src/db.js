@@ -56,6 +56,12 @@ async function migrar() {
       fecha DATE NOT NULL,
       UNIQUE(pago_id, fecha)
     );
+
+    CREATE TABLE IF NOT EXISTS borradores_pago (
+      numero TEXT PRIMARY KEY,
+      datos JSONB NOT NULL DEFAULT '{}',
+      actualizado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
   `);
 }
 

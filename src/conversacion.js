@@ -1,6 +1,7 @@
 const dayjs = require("dayjs");
 const paymentsService = require("./services/paymentsService");
 const settingsService = require("./services/settingsService");
+const borradoresService = require("./services/borradoresService");
 const whatsapp = require("./whatsapp");
 const gemini = require("./gemini");
 
@@ -80,35 +81,105 @@ async function eliminarPago(numero, id) {
   return responder(numero, `🗑️ Eliminé el pago: *${pago.nombre}*.`);
 }
 
-async function crearPago(numero, datos, textoOriginal) {
-  if (
-    !datos.empresa ||
-    !datos.nombre ||
-    !datos.fecha_vencimiento ||
-    !dayjs(datos.fecha_vencimiento, "YYYY-MM-DD", true).isValid()
-  ) {
-    return responder(
-      numero,
-      "Me falta información para programar ese pago (necesito al menos la empresa, el nombre y la fecha de vencimiento). ¿Puedes darme más detalles?"
-    );
-  }
+// Campos obligatorios para crear un pago, en el orden en que se preguntan si faltan.
+const CAMPOS_REQUERIDOS = [
+  { campo: "empresa", pregunta: "¿A qué empresa pertenece este pago?" },
+  { campo: "nombre", pregunta: "¿Cómo quieres que se llame este pago? (ej: SOAT camioneta ABC123, Pago a socios...)" },
+  { campo: "fecha_vencimiento", pregunta: "¿Cuándo vence? (puedes decir una fecha, o algo como 'el día 3 de cada mes')" },
+  { campo: "monto", pregunta: "¿Cuál es el monto?" },
+  { campo: "dias_aviso", pregunta: "¿Con cuántos días de anticipación quieres que te lo recuerde?" },
+];
+
+function normalizarDatosPago(datos) {
+  const fechaValida =
+    datos.fecha_vencimiento && dayjs(datos.fecha_vencimiento, "YYYY-MM-DD", true).isValid()
+      ? datos.fecha_vencimiento
+      : null;
+  return {
+    empresa: datos.empresa || null,
+    nombre: datos.nombre || null,
+    categoria: datos.categoria || "Otro",
+    fecha_vencimiento: fechaValida,
+    recurrencia: paymentsService.RECURRENCIAS.includes(datos.recurrencia) ? datos.recurrencia : "ninguna",
+    monto: typeof datos.monto === "number" && datos.monto > 0 ? datos.monto : null,
+    dias_aviso: Number.isFinite(datos.dias_aviso) ? datos.dias_aviso : null,
+  };
+}
+
+function primerCampoFaltante(datos) {
+  return CAMPOS_REQUERIDOS.find((c) => !datos[c.campo] && datos[c.campo] !== 0);
+}
+
+async function crearPagoFinal(numero, datos) {
   const pago = await paymentsService.create({
     empresa: datos.empresa,
     nombre: datos.nombre,
     categoria: datos.categoria || "Otro",
-    monto: datos.monto || 0,
+    monto: datos.monto,
     fecha_vencimiento: datos.fecha_vencimiento,
     recurrencia: paymentsService.RECURRENCIAS.includes(datos.recurrencia) ? datos.recurrencia : "ninguna",
-    dias_aviso: Number.isFinite(datos.dias_aviso) ? datos.dias_aviso : 3,
+    dias_aviso: datos.dias_aviso,
     notas: "",
   });
 
   return responderConRedaccion(
     numero,
-    `La contadora pidio programar este pago (mensaje original: "${textoOriginal || ""}") y ya quedo guardado exitosamente. Confirmaselo de forma natural, mencionando nombre, monto, fecha de vencimiento y si se repite. Aclarale al final, en una frase corta, que si algo esta mal puede escribir "elimina el pago ${pago.id}".`,
+    `Ya se termino de reunir toda la informacion y este pago quedo guardado exitosamente. Confirmaselo de forma natural, mencionando empresa, nombre, monto, fecha de vencimiento y si se repite. Aclarale al final, en una frase corta, que si algo esta mal puede escribir "elimina el pago ${pago.id}".`,
     datosParaGemini(pago),
     `✅ Pago programado:\n\n${whatsapp.formatPago(pago)}\n\n_Si algo está mal, escribe "elimina el pago ${pago.id}" y vuelve a intentarlo._`
   );
+}
+
+/** Punto de entrada cuando Gemini detecta la intencion de crear un pago (primer mensaje). */
+async function crearOPreguntar(numero, datosParciales) {
+  const datos = normalizarDatosPago(datosParciales);
+  const faltante = primerCampoFaltante(datos);
+
+  if (!faltante) return crearPagoFinal(numero, datos);
+
+  await borradoresService.guardar(numero, datos);
+  return responder(numero, faltante.pregunta);
+}
+
+/** El numero tiene un pago a medio armar: esta respuesta completa el campo que faltaba. */
+async function continuarBorrador(numero, borrador, texto) {
+  if (/^(cancela|cancelar|olv[ií]dalo|nada|ya no)$/i.test(texto.trim())) {
+    await borradoresService.borrar(numero);
+    return responder(numero, "Listo, cancelé el pago que estábamos armando. ¿Algo más?");
+  }
+
+  const campoActual = primerCampoFaltante(borrador);
+  if (!campoActual) {
+    await borradoresService.borrar(numero);
+    return crearPagoFinal(numero, borrador);
+  }
+
+  let resultado;
+  try {
+    const empresasConocidas = campoActual.campo === "empresa" ? await paymentsService.getEmpresas() : [];
+    resultado = await gemini.interpretarCampo(campoActual.campo, texto, empresasConocidas);
+  } catch (err) {
+    console.error("Error interpretando respuesta de campo pendiente:", err.message);
+    return responder(numero, "No logré entenderlo, ¿puedes intentar de nuevo?");
+  }
+
+  if (resultado.valor === null || resultado.valor === undefined || resultado.valor === "") {
+    return responder(numero, `No logré entenderlo. ${campoActual.pregunta}`);
+  }
+
+  const actualizado = { ...borrador, [campoActual.campo]: resultado.valor };
+  if (campoActual.campo === "fecha_vencimiento" && resultado.recurrencia) {
+    actualizado.recurrencia = resultado.recurrencia;
+  }
+
+  const siguienteFaltante = primerCampoFaltante(actualizado);
+  if (siguienteFaltante) {
+    await borradoresService.guardar(numero, actualizado);
+    return responder(numero, siguienteFaltante.pregunta);
+  }
+
+  await borradoresService.borrar(numero);
+  return crearPagoFinal(numero, actualizado);
 }
 
 async function activarRecordatorios(numero) {
@@ -151,6 +222,10 @@ async function manejarMensaje(numero, textoOriginal) {
   if (/^(pendientes|pagos)$/.test(textoLower)) return consultar(numero, "pendientes", texto);
   if (/^(hola|ayuda|menu|menú)$/.test(textoLower)) return responder(numero, whatsapp.AYUDA);
 
+  // Si hay un pago a medio armar para este numero, esta respuesta completa el siguiente dato pendiente.
+  const borrador = await borradoresService.get(numero);
+  if (borrador) return continuarBorrador(numero, borrador, texto);
+
   let intencion;
   try {
     const empresasConocidas = await paymentsService.getEmpresas();
@@ -162,7 +237,7 @@ async function manejarMensaje(numero, textoOriginal) {
 
   switch (intencion.accion) {
     case "crear_pago":
-      return crearPago(numero, intencion, texto);
+      return crearOPreguntar(numero, intencion);
     case "consultar":
       return consultar(numero, intencion.filtro, texto, intencion.empresa);
     case "marcar_pagado":

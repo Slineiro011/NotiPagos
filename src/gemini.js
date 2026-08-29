@@ -55,12 +55,13 @@ Reglas sobre la empresa:
 
 Tu unica salida debe ser un JSON (sin texto adicional, sin markdown) con una de estas formas exactas segun la intencion del mensaje:
 
-1) Programar un pago nuevo (usa la categoria mas parecida de la lista; si no dice dias de aviso, usa 3):
-{"accion":"crear_pago","empresa":"...","nombre":"...","categoria":"...","monto":0,"fecha_vencimiento":"AAAA-MM-DD","recurrencia":"...","dias_aviso":3}
+1) Programar un pago nuevo. IMPORTANTE: NO inventes ni asumas valores por defecto para "monto" ni "dias_aviso" - si el mensaje no los menciona explicitamente, deja esos campos en null (un asistente hara preguntas de seguimiento para completarlos). Igual con "empresa", "nombre" y "fecha_vencimiento": si no se mencionan, deja el campo en null (no en texto vacio):
+{"accion":"crear_pago","empresa":null,"nombre":null,"categoria":"...","monto":null,"fecha_vencimiento":null,"recurrencia":"ninguna","dias_aviso":null}
 
-Reglas para calcular fecha_vencimiento en crear_pago:
+Reglas para calcular fecha_vencimiento en crear_pago (cuando SI se menciona):
 - Si da una fecha exacta o relativa ("el 5 de septiembre", "en 15 dias", "el proximo lunes"), calcula la fecha real correspondiente.
 - Si describe una recurrencia con un dia fijo del periodo (ej: "todos los 3 de cada mes", "el dia 3 de cada mes", "mensual el 15", "cada trimestre el dia 10"), usa la recurrencia correspondiente (mensual/trimestral/etc.) y calcula fecha_vencimiento como la PROXIMA ocurrencia de ese dia a partir de hoy: si el numero de dia de hoy es menor o igual al dia indicado, usa el mes/periodo actual; si ya paso, usa el siguiente periodo.
+- La categoria siempre debe tener un valor (usa la mas parecida de la lista, o "Otro" si no aplica ninguna) - ese campo si se puede asumir.
 
 2) Consultar pagos (si menciona una empresa especifica, pon su nombre exacto -segun la lista de empresas ya registradas si aplica- en "empresa"; si pregunta por todas las empresas o no menciona ninguna, deja "empresa" vacio ""):
 {"accion":"consultar","filtro":"hoy|semana|mes|vencidos|pendientes","empresa":""}
@@ -116,4 +117,33 @@ async function redactarRespuesta(instruccion, datos) {
   return crudo.trim();
 }
 
-module.exports = { interpretarMensaje, redactarRespuesta, CATEGORIAS, RECURRENCIAS };
+const INSTRUCCIONES_CAMPO = {
+  empresa: (empresas) =>
+    `Extrae el nombre de la empresa que menciona el usuario. Empresas ya registradas: ${empresas.length ? empresas.join(", ") : "(ninguna aun)"}. Si lo que dice se parece a una de esas (por tipeo, acentos, mayusculas), responde con el nombre EXACTO tal como esta en esa lista. Si es una empresa nueva, respondela tal cual con mayuscula inicial en cada palabra.`,
+  nombre: () => `Extrae o resume en pocas palabras claras el nombre/descripcion del pago (ej: "Pago a socios", "SOAT camioneta ABC123").`,
+  fecha_vencimiento: () =>
+    `Hoy es ${dayjs().format("YYYY-MM-DD")} (${dayjs().format("dddd")}). Extrae la fecha de vencimiento del pago y devuelvela en formato AAAA-MM-DD en el campo "valor". Si el usuario describe un patron recurrente con dia fijo (ej: "el 3 de cada mes", "todos los 15"), calcula la PROXIMA ocurrencia a partir de hoy (si el dia de hoy es menor o igual, usa el mes actual; si ya paso, el siguiente) y ademas incluye la recurrencia correspondiente en el campo "recurrencia" (mensual/bimestral/trimestral/semestral/anual). Si no hay patron recurrente, no incluyas el campo "recurrencia".`,
+  recurrencia: () => `Extrae si el pago se repite: responde en "valor" una de estas palabras exactas: ninguna, mensual, bimestral, trimestral, semestral, anual.`,
+  monto: () => `Extrae el monto del pago en pesos como numero, sin puntos, comas ni simbolos (ej: 350000).`,
+  dias_aviso: () => `Extrae el numero de dias de anticipacion con los que se debe avisar del pago, como numero entero (ej: 3).`,
+};
+
+async function interpretarCampo(campo, texto, empresasConocidas = []) {
+  const instruccion = INSTRUCCIONES_CAMPO[campo](empresasConocidas);
+  const prompt = `${instruccion}
+
+Responde SOLO con un JSON de una de estas formas:
+{"valor": ...}
+o, unicamente para fecha_vencimiento cuando aplique una recurrencia: {"valor": "AAAA-MM-DD", "recurrencia": "..."}
+
+Si el usuario no da informacion util para esto, dice que no sabe, o pide saltar/cancelar, responde {"valor": null}.`;
+
+  const crudo = await llamarGemini(prompt, texto, { json: true, temperature: 0.1 });
+  try {
+    return JSON.parse(crudo);
+  } catch {
+    throw new Error(`No se pudo interpretar la respuesta de Gemini como JSON: ${crudo}`);
+  }
+}
+
+module.exports = { interpretarMensaje, interpretarCampo, redactarRespuesta, CATEGORIAS, RECURRENCIAS };
