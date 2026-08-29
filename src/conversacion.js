@@ -12,25 +12,61 @@ async function responder(numero, texto) {
   }
 }
 
-async function consultar(numero, filtro) {
-  const mapa = {
-    hoy: ["📅 Pagos que vencen HOY:", paymentsService.getDeHoy],
-    semana: ["📅 Pagos de los próximos 7 días:", paymentsService.getDeLaSemana],
-    mes: ["📅 Pagos de los próximos 30 días:", paymentsService.getDelMes],
-    vencidos: ["⚠️ Pagos vencidos:", paymentsService.getVencidos],
-    pendientes: ["📋 Todos los pagos pendientes:", paymentsService.getPendientes],
+function datosParaGemini(pago) {
+  const hoy = dayjs().startOf("day");
+  return {
+    id: pago.id,
+    nombre: pago.nombre,
+    categoria: pago.categoria,
+    monto: pago.monto,
+    fecha_vencimiento: pago.fecha_vencimiento,
+    dias_restantes: dayjs(pago.fecha_vencimiento).startOf("day").diff(hoy, "day"),
+    recurrencia: pago.recurrencia,
   };
-  const entrada = mapa[filtro] || mapa.pendientes;
-  const [titulo, obtener] = entrada;
-  const pagos = await obtener();
-  return responder(numero, whatsapp.listaMensaje(titulo, pagos));
+}
+
+/** Responde con una redaccion natural via Gemini; si falla, usa la plantilla fija de respaldo. */
+async function responderConRedaccion(numero, instruccion, datos, textoRespaldo) {
+  try {
+    const texto = await gemini.redactarRespuesta(instruccion, datos);
+    return responder(numero, texto);
+  } catch (err) {
+    console.error("Gemini fallo redactando la respuesta, uso plantilla fija:", err.message);
+    return responder(numero, textoRespaldo);
+  }
+}
+
+const FILTROS = {
+  hoy: { descripcion: "los pagos que vencen HOY", titulo: "📅 Pagos que vencen HOY:", obtener: paymentsService.getDeHoy },
+  semana: { descripcion: "los pagos que vencen en los próximos 7 días", titulo: "📅 Pagos de los próximos 7 días:", obtener: paymentsService.getDeLaSemana },
+  mes: { descripcion: "los pagos que vencen en los próximos 30 días", titulo: "📅 Pagos de los próximos 30 días:", obtener: paymentsService.getDelMes },
+  vencidos: { descripcion: "los pagos que ya están vencidos (atrasados)", titulo: "⚠️ Pagos vencidos:", obtener: paymentsService.getVencidos },
+  pendientes: { descripcion: "todos los pagos pendientes", titulo: "📋 Todos los pagos pendientes:", obtener: paymentsService.getPendientes },
+};
+
+async function consultar(numero, filtro, textoOriginal) {
+  const entrada = FILTROS[filtro] || FILTROS.pendientes;
+  const pagos = await entrada.obtener();
+  const datos = pagos.map(datosParaGemini);
+
+  return responderConRedaccion(
+    numero,
+    `La contadora pregunto: "${textoOriginal || entrada.descripcion}". Cuentale de forma natural cuales son ${entrada.descripcion}.`,
+    datos,
+    whatsapp.listaMensaje(entrada.titulo, pagos)
+  );
 }
 
 async function marcarPagado(numero, id) {
   const pago = await paymentsService.getById(id);
   if (!pago) return responder(numero, `No encontré ningún pago con el número #${id}.`);
   await paymentsService.marcarPagado(id);
-  return responder(numero, `✅ Marqué como pagado: *${pago.nombre}* ($${whatsapp.formatMoneda(pago.monto)}).`);
+  return responderConRedaccion(
+    numero,
+    "La contadora acaba de marcar este pago como realizado. Confirmaselo de forma breve y natural.",
+    datosParaGemini(pago),
+    `✅ Marqué como pagado: *${pago.nombre}* ($${whatsapp.formatMoneda(pago.monto)}).`
+  );
 }
 
 async function eliminarPago(numero, id) {
@@ -40,7 +76,7 @@ async function eliminarPago(numero, id) {
   return responder(numero, `🗑️ Eliminé el pago: *${pago.nombre}*.`);
 }
 
-async function crearPago(numero, datos) {
+async function crearPago(numero, datos, textoOriginal) {
   if (!datos.nombre || !datos.fecha_vencimiento || !dayjs(datos.fecha_vencimiento, "YYYY-MM-DD", true).isValid()) {
     return responder(
       numero,
@@ -56,8 +92,11 @@ async function crearPago(numero, datos) {
     dias_aviso: Number.isFinite(datos.dias_aviso) ? datos.dias_aviso : 3,
     notas: "",
   });
-  return responder(
+
+  return responderConRedaccion(
     numero,
+    `La contadora pidio programar este pago (mensaje original: "${textoOriginal || ""}") y ya quedo guardado exitosamente. Confirmaselo de forma natural, mencionando nombre, monto, fecha de vencimiento y si se repite. Aclarale al final, en una frase corta, que si algo esta mal puede escribir "elimina el pago ${pago.id}".`,
+    datosParaGemini(pago),
     `✅ Pago programado:\n\n${whatsapp.formatPago(pago)}\n\n_Si algo está mal, escribe "elimina el pago ${pago.id}" y vuelve a intentarlo._`
   );
 }
@@ -73,11 +112,11 @@ async function manejarMensaje(numero, textoOriginal) {
   const matchEliminar = textoLower.match(/^(?:elimina|borra|cancela)r?\s+(?:el\s+)?pago\s+(\d+)$/);
   if (matchEliminar) return eliminarPago(numero, Number(matchEliminar[1]));
 
-  if (/^hoy$/.test(textoLower)) return consultar(numero, "hoy");
-  if (/^semana$/.test(textoLower)) return consultar(numero, "semana");
-  if (/^mes$/.test(textoLower)) return consultar(numero, "mes");
-  if (/^(vencidos|atrasados)$/.test(textoLower)) return consultar(numero, "vencidos");
-  if (/^(pendientes|pagos)$/.test(textoLower)) return consultar(numero, "pendientes");
+  if (/^hoy$/.test(textoLower)) return consultar(numero, "hoy", texto);
+  if (/^semana$/.test(textoLower)) return consultar(numero, "semana", texto);
+  if (/^mes$/.test(textoLower)) return consultar(numero, "mes", texto);
+  if (/^(vencidos|atrasados)$/.test(textoLower)) return consultar(numero, "vencidos", texto);
+  if (/^(pendientes|pagos)$/.test(textoLower)) return consultar(numero, "pendientes", texto);
   if (/^(hola|ayuda|menu|menú)$/.test(textoLower)) return responder(numero, whatsapp.AYUDA);
 
   let intencion;
@@ -90,9 +129,9 @@ async function manejarMensaje(numero, textoOriginal) {
 
   switch (intencion.accion) {
     case "crear_pago":
-      return crearPago(numero, intencion);
+      return crearPago(numero, intencion, texto);
     case "consultar":
-      return consultar(numero, intencion.filtro);
+      return consultar(numero, intencion.filtro, texto);
     case "marcar_pagado":
       return marcarPagado(numero, intencion.id);
     case "eliminar_pago":
