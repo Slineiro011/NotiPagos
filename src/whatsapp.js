@@ -60,7 +60,7 @@ async function enviarPlantilla(numero, textoVariable) {
       components: [
         {
           type: "body",
-          parameters: [{ type: "text", text: textoVariable }],
+          parameters: [{ type: "text", parameter_name: "recordatorio", text: textoVariable }],
         },
       ],
     },
