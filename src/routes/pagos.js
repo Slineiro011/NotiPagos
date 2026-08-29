@@ -8,7 +8,7 @@ const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
 router.get(
   "/",
   wrap(async (req, res) => {
-    const { filtro } = req.query;
+    const { filtro, empresa } = req.query;
     const porFiltro = {
       hoy: paymentsService.getDeHoy,
       semana: paymentsService.getDeLaSemana,
@@ -17,7 +17,14 @@ router.get(
       pendientes: paymentsService.getPendientes,
     };
     const obtener = porFiltro[filtro] || paymentsService.getAll;
-    res.json(await obtener());
+    res.json(await obtener(empresa || undefined));
+  })
+);
+
+router.get(
+  "/empresas/lista",
+  wrap(async (req, res) => {
+    res.json(await paymentsService.getEmpresas());
   })
 );
 

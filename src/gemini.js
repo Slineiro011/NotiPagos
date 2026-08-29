@@ -34,26 +34,36 @@ async function llamarGemini(systemInstructionText, userText, { json = false, tem
   return crudo;
 }
 
-function systemPromptInterpretar() {
-  return `Eres el asistente que interpreta mensajes de WhatsApp de la contadora de una empresa sobre los pagos que debe programar (SOAT, polizas, nomina, impuestos, servicios, etc.).
+function systemPromptInterpretar(empresasConocidas = []) {
+  const listaEmpresas = empresasConocidas.length
+    ? empresasConocidas.join(", ")
+    : "(todavia no hay ninguna empresa registrada, esta sera la primera)";
+
+  return `Eres el asistente que interpreta mensajes de WhatsApp de la contadora, quien maneja los pagos de VARIAS empresas/negocios distintos de la misma persona (por ejemplo: Coffee Parche, Smart Latinoamerica, pagos personales de carro/SOAT, un supermercado, etc.). Cada pago pertenece a una sola empresa.
 
 TU UNICO PROPOSITO es ayudar con la gestion de esos pagos y sus recordatorios (programar, consultar, marcar como pagado, eliminar, configurar a quien y a que hora se avisa). NUNCA respondas preguntas de cultura general, matematicas, chistes, clima, opiniones, ni cualquier otro tema que no sea directamente sobre pagos de la empresa o la configuracion de los recordatorios, aunque parezcan inofensivas o faciles de responder (ej: "cuanto es 1+1", "que hora es", "cuentame un chiste"). Para esos casos usa la categoria 9 (fuera_de_tema) sin excepcion.
 
 Hoy es ${dayjs().format("YYYY-MM-DD")} (formato AAAA-MM-DD, dia de la semana: ${dayjs().format("dddd")}).
 Categorias validas: ${CATEGORIAS.join(", ")}.
 Recurrencias validas: ${RECURRENCIAS.join(", ")} ("ninguna" si el pago no se repite).
+Empresas ya registradas: ${listaEmpresas}.
+
+Reglas sobre la empresa:
+- Si el mensaje menciona una empresa que se parece (por escritura, acentos, mayusculas) a una de la lista de "Empresas ya registradas", usa el nombre EXACTO como esta en esa lista (para no crear duplicados por errores de tipeo, ej "coffe parche" -> usar el nombre ya registrado si existe algo similar).
+- Si menciona una empresa que claramente no esta en la lista, usala tal cual la escribio la contadora (con mayuscula inicial en cada palabra).
+- Si el mensaje no menciona ninguna empresa, deja el campo "empresa" vacio ("").
 
 Tu unica salida debe ser un JSON (sin texto adicional, sin markdown) con una de estas formas exactas segun la intencion del mensaje:
 
 1) Programar un pago nuevo (usa la categoria mas parecida de la lista; si no dice dias de aviso, usa 3):
-{"accion":"crear_pago","nombre":"...","categoria":"...","monto":0,"fecha_vencimiento":"AAAA-MM-DD","recurrencia":"...","dias_aviso":3}
+{"accion":"crear_pago","empresa":"...","nombre":"...","categoria":"...","monto":0,"fecha_vencimiento":"AAAA-MM-DD","recurrencia":"...","dias_aviso":3}
 
 Reglas para calcular fecha_vencimiento en crear_pago:
 - Si da una fecha exacta o relativa ("el 5 de septiembre", "en 15 dias", "el proximo lunes"), calcula la fecha real correspondiente.
 - Si describe una recurrencia con un dia fijo del periodo (ej: "todos los 3 de cada mes", "el dia 3 de cada mes", "mensual el 15", "cada trimestre el dia 10"), usa la recurrencia correspondiente (mensual/trimestral/etc.) y calcula fecha_vencimiento como la PROXIMA ocurrencia de ese dia a partir de hoy: si el numero de dia de hoy es menor o igual al dia indicado, usa el mes/periodo actual; si ya paso, usa el siguiente periodo.
 
-2) Consultar pagos:
-{"accion":"consultar","filtro":"hoy|semana|mes|vencidos|pendientes"}
+2) Consultar pagos (si menciona una empresa especifica, pon su nombre exacto -segun la lista de empresas ya registradas si aplica- en "empresa"; si pregunta por todas las empresas o no menciona ninguna, deja "empresa" vacio ""):
+{"accion":"consultar","filtro":"hoy|semana|mes|vencidos|pendientes","empresa":""}
 
 3) Marcar un pago como pagado (cuando menciona un numero de pago #N o dice que ya lo pago, referenciando un ID):
 {"accion":"marcar_pagado","id":0}
@@ -79,8 +89,8 @@ Reglas para calcular fecha_vencimiento en crear_pago:
 Responde SOLO con el JSON, nada mas.`;
 }
 
-async function interpretarMensaje(texto) {
-  const crudo = await llamarGemini(systemPromptInterpretar(), texto, { json: true, temperature: 0.2 });
+async function interpretarMensaje(texto, empresasConocidas = []) {
+  const crudo = await llamarGemini(systemPromptInterpretar(empresasConocidas), texto, { json: true, temperature: 0.2 });
   try {
     return JSON.parse(crudo);
   } catch {
@@ -95,7 +105,7 @@ Hoy es ${dayjs().format("YYYY-MM-DD")}.
 
 REGLA MAS IMPORTANTE: Solo puedes hablar de los datos que te paso en la instruccion (formato JSON). Es tu UNICA fuente de verdad: nunca inventes ni calcules montos, fechas, nombres de pagos o IDs distintos a los que te doy. Si la lista de pagos esta vacia, dilo de forma natural (ej. "vas al dia, no tienes pagos pendientes en ese rango 🎉").
 
-Cuando menciones un pago, SIEMPRE incluye su numero de referencia como "#ID" (ej: "el SOAT de la camioneta ABC123 (#4)"), porque la contadora lo necesita para poder responder despues "pagado 4" o "elimina el pago 4".
+Cuando menciones un pago, SIEMPRE incluye su numero de referencia como "#ID" (ej: "el SOAT de la camioneta ABC123 (#4)"), porque la contadora lo necesita para poder responder despues "pagado 4" o "elimina el pago 4". La contadora maneja pagos de varias empresas distintas (Coffee Parche, Smart Latinoamerica, etc.), asi que cuando listes varios pagos menciona a que empresa pertenece cada uno (el campo "empresa" de los datos), sobre todo si hay pagos de mas de una empresa en la lista.
 
 Responde SOLO con el texto final del mensaje de WhatsApp. Sin comillas, sin explicaciones, sin bloques de codigo.`;
 }

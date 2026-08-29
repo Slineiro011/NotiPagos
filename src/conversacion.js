@@ -17,6 +17,7 @@ function datosParaGemini(pago) {
   const hoy = dayjs().startOf("day");
   return {
     id: pago.id,
+    empresa: pago.empresa,
     nombre: pago.nombre,
     categoria: pago.categoria,
     monto: pago.monto,
@@ -45,16 +46,18 @@ const FILTROS = {
   pendientes: { descripcion: "todos los pagos pendientes", titulo: "📋 Todos los pagos pendientes:", obtener: paymentsService.getPendientes },
 };
 
-async function consultar(numero, filtro, textoOriginal) {
+async function consultar(numero, filtro, textoOriginal, empresa) {
   const entrada = FILTROS[filtro] || FILTROS.pendientes;
-  const pagos = await entrada.obtener();
+  const pagos = await entrada.obtener(empresa || undefined);
   const datos = pagos.map(datosParaGemini);
+  const contexto = empresa ? `${entrada.descripcion} de la empresa "${empresa}"` : entrada.descripcion;
+  const titulo = empresa ? `${entrada.titulo} (${empresa})` : entrada.titulo;
 
   return responderConRedaccion(
     numero,
-    `La contadora pregunto: "${textoOriginal || entrada.descripcion}". Cuentale de forma natural cuales son ${entrada.descripcion}.`,
+    `La contadora pregunto: "${textoOriginal || contexto}". Cuentale de forma natural cuales son ${contexto}.`,
     datos,
-    whatsapp.listaMensaje(entrada.titulo, pagos)
+    whatsapp.listaMensaje(titulo, pagos)
   );
 }
 
@@ -78,13 +81,19 @@ async function eliminarPago(numero, id) {
 }
 
 async function crearPago(numero, datos, textoOriginal) {
-  if (!datos.nombre || !datos.fecha_vencimiento || !dayjs(datos.fecha_vencimiento, "YYYY-MM-DD", true).isValid()) {
+  if (
+    !datos.empresa ||
+    !datos.nombre ||
+    !datos.fecha_vencimiento ||
+    !dayjs(datos.fecha_vencimiento, "YYYY-MM-DD", true).isValid()
+  ) {
     return responder(
       numero,
-      "Me falta información para programar ese pago (necesito al menos el nombre y la fecha de vencimiento). ¿Puedes darme más detalles?"
+      "Me falta información para programar ese pago (necesito al menos la empresa, el nombre y la fecha de vencimiento). ¿Puedes darme más detalles?"
     );
   }
   const pago = await paymentsService.create({
+    empresa: datos.empresa,
     nombre: datos.nombre,
     categoria: datos.categoria || "Otro",
     monto: datos.monto || 0,
@@ -144,7 +153,8 @@ async function manejarMensaje(numero, textoOriginal) {
 
   let intencion;
   try {
-    intencion = await gemini.interpretarMensaje(texto);
+    const empresasConocidas = await paymentsService.getEmpresas();
+    intencion = await gemini.interpretarMensaje(texto, empresasConocidas);
   } catch (err) {
     console.error("Error interpretando mensaje con Gemini:", err.message);
     return responder(numero, "Tuve un problema entendiendo tu mensaje. Intenta de nuevo o escribe *ayuda*.");
@@ -154,7 +164,7 @@ async function manejarMensaje(numero, textoOriginal) {
     case "crear_pago":
       return crearPago(numero, intencion, texto);
     case "consultar":
-      return consultar(numero, intencion.filtro, texto);
+      return consultar(numero, intencion.filtro, texto, intencion.empresa);
     case "marcar_pagado":
       return marcarPagado(numero, intencion.id);
     case "eliminar_pago":

@@ -97,7 +97,7 @@ function formatPago(pago) {
   else if (dias === 1) cuando = "🟠 vence MAÑANA";
   else cuando = `vence en ${dias} dias (${pago.fecha_vencimiento})`;
 
-  return `#${pago.id} *${pago.nombre}* (${pago.categoria})\n   💰 $${formatMoneda(pago.monto)} - ${cuando}`;
+  return `#${pago.id} *${pago.nombre}* — ${pago.empresa} (${pago.categoria})\n   💰 $${formatMoneda(pago.monto)} - ${cuando}`;
 }
 
 function listaMensaje(titulo, pagos) {
@@ -106,10 +106,10 @@ function listaMensaje(titulo, pagos) {
   return `${titulo}\n\n${cuerpo}\n\n_Responde "pagado <numero>" para marcar un pago como realizado, ej: "pagado ${pagos[0].id}"_`;
 }
 
-const AYUDA = `👋 Hola, soy tu asistente de pagos. Puedes escribirme en lenguaje natural, por ejemplo:
+const AYUDA = `👋 Hola, soy tu asistente de pagos. Manejo los pagos de varias empresas, así que siempre dime a cuál pertenece. Puedes escribirme en lenguaje natural, por ejemplo:
 
-• "Programa el SOAT de la camioneta ABC123, vence el 5 de septiembre, son 350000, se repite cada año, avisame con 7 dias"
-• "¿Qué pagos hay esta semana?"
+• "Programa en Coffee Parche el SOAT de la camioneta ABC123, vence el 5 de septiembre, son 350000, se repite cada año, avisame con 7 dias"
+• "¿Qué pagos tiene Smart Latinoamérica esta semana?"
 • "pagado 4" (marca el pago #4 como realizado)
 • "elimina el pago 4"
 • "avísame a mí" (activa los recordatorios diarios en este número)

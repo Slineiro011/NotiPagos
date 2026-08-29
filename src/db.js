@@ -20,6 +20,7 @@ async function migrar() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS pagos (
       id SERIAL PRIMARY KEY,
+      empresa TEXT NOT NULL DEFAULT 'Sin empresa',
       nombre TEXT NOT NULL,
       categoria TEXT NOT NULL DEFAULT 'Otro',
       monto NUMERIC NOT NULL DEFAULT 0,
@@ -30,16 +31,19 @@ async function migrar() {
       notas TEXT DEFAULT '',
       creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+    ALTER TABLE pagos ADD COLUMN IF NOT EXISTS empresa TEXT NOT NULL DEFAULT 'Sin empresa';
 
     CREATE TABLE IF NOT EXISTS historial_pagos (
       id SERIAL PRIMARY KEY,
       pago_id INTEGER,
+      empresa TEXT NOT NULL DEFAULT 'Sin empresa',
       nombre TEXT NOT NULL,
       categoria TEXT NOT NULL,
       monto NUMERIC NOT NULL,
       fecha_vencimiento DATE NOT NULL,
       fecha_pago TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+    ALTER TABLE historial_pagos ADD COLUMN IF NOT EXISTS empresa TEXT NOT NULL DEFAULT 'Sin empresa';
 
     CREATE TABLE IF NOT EXISTS configuracion (
       clave TEXT PRIMARY KEY,

@@ -35,9 +35,31 @@ function estadoVisual(pago) {
 
 // ---------- Listado de pagos ----------
 let filtroActual = "pendientes";
+let empresaActual = "";
+
+async function cargarEmpresas() {
+  const res = await fetch(`${API}/pagos/empresas/lista`);
+  const empresas = await res.json();
+
+  const selectFiltro = document.getElementById("filtro-empresa");
+  const valorPrevio = selectFiltro.value;
+  selectFiltro.innerHTML = `<option value="">Todas las empresas</option>`;
+  for (const emp of empresas) {
+    const opt = document.createElement("option");
+    opt.value = emp;
+    opt.textContent = emp;
+    selectFiltro.appendChild(opt);
+  }
+  selectFiltro.value = valorPrevio;
+
+  const datalist = document.getElementById("lista-empresas");
+  datalist.innerHTML = empresas.map((emp) => `<option value="${emp}"></option>`).join("");
+}
 
 async function cargarPagos() {
-  const res = await fetch(`${API}/pagos?filtro=${filtroActual}`);
+  const params = new URLSearchParams({ filtro: filtroActual });
+  if (empresaActual) params.set("empresa", empresaActual);
+  const res = await fetch(`${API}/pagos?${params.toString()}`);
   const pagos = await res.json();
   const contenedor = document.getElementById("lista-pagos");
   contenedor.innerHTML = "";
@@ -61,7 +83,7 @@ function crearTarjetaPago(pago) {
     <div class="pago-info">
       <span class="pago-nombre">${pago.nombre}</span>
       <span class="pago-estado ${estado.clase}">${estado.texto}</span>
-      <div class="pago-meta">${pago.categoria} · $${formatMoneda(pago.monto)} · vence ${pago.fecha_vencimiento}${pago.recurrencia !== "ninguna" ? ` · se repite: ${pago.recurrencia}` : ""}</div>
+      <div class="pago-meta">🏢 ${pago.empresa} · ${pago.categoria} · $${formatMoneda(pago.monto)} · vence ${pago.fecha_vencimiento}${pago.recurrencia !== "ninguna" ? ` · se repite: ${pago.recurrencia}` : ""}</div>
     </div>
     <div class="pago-acciones">
       ${pago.estado === "pendiente" ? `<button class="btn-pagado" data-accion="pagado" data-id="${pago.id}">✔ Pagado</button>` : ""}
@@ -76,6 +98,11 @@ function crearTarjetaPago(pago) {
 
   return div;
 }
+
+document.getElementById("filtro-empresa").addEventListener("change", (e) => {
+  empresaActual = e.target.value;
+  cargarPagos();
+});
 
 async function manejarAccion(accion, id, pago) {
   if (accion === "pagado") {
@@ -118,7 +145,7 @@ async function cargarHistorial() {
     div.innerHTML = `
       <div class="pago-info">
         <span class="pago-nombre">${h.nombre}</span>
-        <div class="pago-meta">${h.categoria} · $${formatMoneda(h.monto)} · pagado el ${h.fecha_pago}</div>
+        <div class="pago-meta">🏢 ${h.empresa} · ${h.categoria} · $${formatMoneda(h.monto)} · pagado el ${h.fecha_pago}</div>
       </div>
     `;
     contenedor.appendChild(div);
@@ -135,6 +162,7 @@ document.getElementById("btn-cancelar").addEventListener("click", () => dialog.c
 function abrirFormulario(pago) {
   document.getElementById("form-titulo").textContent = pago ? "Editar pago" : "Nuevo pago";
   document.getElementById("pago-id").value = pago?.id || "";
+  document.getElementById("pago-empresa").value = pago?.empresa || empresaActual || "";
   document.getElementById("pago-nombre").value = pago?.nombre || "";
   document.getElementById("pago-categoria").value = pago?.categoria || "SOAT";
   document.getElementById("pago-monto").value = pago?.monto || "";
@@ -148,6 +176,7 @@ function abrirFormulario(pago) {
 form.addEventListener("submit", async (e) => {
   const id = document.getElementById("pago-id").value;
   const datos = {
+    empresa: document.getElementById("pago-empresa").value,
     nombre: document.getElementById("pago-nombre").value,
     categoria: document.getElementById("pago-categoria").value,
     monto: document.getElementById("pago-monto").value,
@@ -171,6 +200,7 @@ form.addEventListener("submit", async (e) => {
     });
   }
   cargarPagos();
+  cargarEmpresas();
 });
 
 // ---------- Configuración ----------
@@ -221,3 +251,4 @@ document.getElementById("btn-probar-whatsapp").addEventListener("click", async (
 
 // ---------- Inicio ----------
 cargarPagos();
+cargarEmpresas();
