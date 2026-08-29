@@ -11,6 +11,8 @@ router.get("/", (req, res) => {
   const token = req.query["hub.verify_token"];
   const challenge = req.query["hub.challenge"];
 
+  console.log(`[webhook] Verificacion recibida: mode=${mode} tokenCoincide=${token === VERIFY_TOKEN}`);
+
   if (mode === "subscribe" && token === VERIFY_TOKEN) {
     return res.status(200).send(challenge);
   }
@@ -22,14 +24,24 @@ router.post("/", (req, res) => {
   // Responder rapido para que Meta no reintente; procesar en segundo plano.
   res.sendStatus(200);
 
+  console.log("[webhook] POST recibido:", JSON.stringify(req.body));
+
   try {
     const value = req.body?.entry?.[0]?.changes?.[0]?.value;
     const mensaje = value?.messages?.[0];
-    if (!mensaje) return; // puede ser un evento de "statuses" (entregado/leido), lo ignoramos
+    if (!mensaje) {
+      console.log("[webhook] No hay 'messages' en el payload (puede ser un evento de estado), se ignora.");
+      return;
+    }
 
     const numero = mensaje.from;
     const texto = mensaje.text?.body;
-    if (!texto) return; // por ahora solo procesamos mensajes de texto
+    if (!texto) {
+      console.log("[webhook] El mensaje no tiene texto (puede ser imagen/audio/etc), se ignora.");
+      return;
+    }
+
+    console.log(`[webhook] Mensaje de ${numero}: "${texto}"`);
 
     conversacion.manejarMensaje(numero, texto).catch((err) => {
       console.error("Error manejando mensaje entrante de WhatsApp:", err);

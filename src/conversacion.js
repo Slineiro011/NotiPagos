@@ -6,6 +6,7 @@ const gemini = require("./gemini");
 async function responder(numero, texto) {
   try {
     await whatsapp.enviarTexto(numero, texto);
+    console.log(`[conversacion] Respondido a ${numero} correctamente.`);
   } catch (err) {
     console.error("No se pudo responder por WhatsApp:", err.message);
   }
