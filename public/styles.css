@@ -1,0 +1,205 @@
+:root {
+  --bg: #f6f7fb;
+  --card: #ffffff;
+  --border: #e3e6ee;
+  --text: #1e2330;
+  --text-muted: #6b7280;
+  --primary: #2563eb;
+  --primary-dark: #1d4ed8;
+  --danger: #dc2626;
+  --warning: #d97706;
+  --ok: #16a34a;
+  --radius: 10px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.topbar {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+
+.topbar h1 {
+  font-size: 1.15rem;
+  margin: 0;
+}
+
+.tabs { display: flex; gap: 8px; }
+
+.tab-btn {
+  border: none;
+  background: transparent;
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.tab-btn.active {
+  background: var(--primary);
+  color: #fff;
+}
+
+main { padding: 24px; max-width: 960px; margin: 0 auto; }
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.filtros { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.filtro-btn {
+  border: 1px solid var(--border);
+  background: var(--card);
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.filtro-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.btn-primario, .btn-secundario {
+  border: none;
+  border-radius: var(--radius);
+  padding: 9px 16px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.btn-primario { background: var(--primary); color: #fff; }
+.btn-primario:hover { background: var(--primary-dark); }
+
+.btn-secundario {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.lista-pagos { display: flex; flex-direction: column; gap: 10px; }
+
+.pago-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pago-info { flex: 1; min-width: 200px; }
+
+.pago-nombre { font-weight: 600; }
+
+.pago-meta {
+  font-size: 0.83rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.pago-estado {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-left: 8px;
+}
+
+.estado-hoy { background: #fee2e2; color: var(--danger); }
+.estado-pronto { background: #fef3c7; color: var(--warning); }
+.estado-normal { background: #e0e7ff; color: var(--primary); }
+.estado-vencido { background: #fecaca; color: var(--danger); }
+.estado-pagado { background: #dcfce7; color: var(--ok); }
+
+.pago-acciones { display: flex; gap: 6px; }
+
+.pago-acciones button {
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.pago-acciones .btn-pagado { color: var(--ok); border-color: var(--ok); }
+.pago-acciones .btn-eliminar { color: var(--danger); border-color: var(--danger); }
+
+.vacio { color: var(--text-muted); padding: 30px; text-align: center; }
+
+.config-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 720px) {
+  .config-grid { grid-template-columns: 1fr; }
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+}
+
+.card h2 { font-size: 1rem; margin-top: 0; }
+
+#whatsapp-qr { max-width: 220px; margin: 12px 0; display: block; }
+
+.ayuda-texto { font-size: 0.8rem; color: var(--text-muted); }
+
+textarea, input[type="text"], input[type="number"], input[type="date"], input[type="time"], select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  margin-top: 4px;
+}
+
+label { display: block; font-size: 0.85rem; margin-bottom: 12px; color: var(--text-muted); }
+
+dialog {
+  border: none;
+  border-radius: var(--radius);
+  padding: 24px;
+  width: min(480px, 90vw);
+}
+
+dialog::backdrop { background: rgba(0,0,0,0.4); }
+
+.form-botones { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+
+.ok-texto { color: var(--ok); font-size: 0.85rem; margin-left: 10px; }

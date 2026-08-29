@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pagos de la empresa</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>💳 Pagos de la empresa</h1>
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="pagos">Pagos</button>
+      <button class="tab-btn" data-tab="historial">Historial</button>
+      <button class="tab-btn" data-tab="config">WhatsApp / Configuración</button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="tab-pagos" class="tab-panel active">
+      <div class="toolbar">
+        <div class="filtros">
+          <button class="filtro-btn active" data-filtro="pendientes">Pendientes</button>
+          <button class="filtro-btn" data-filtro="hoy">Hoy</button>
+          <button class="filtro-btn" data-filtro="semana">Esta semana</button>
+          <button class="filtro-btn" data-filtro="mes">Este mes</button>
+          <button class="filtro-btn" data-filtro="vencidos">Vencidos</button>
+          <button class="filtro-btn" data-filtro="">Todos</button>
+        </div>
+        <button id="btn-nuevo" class="btn-primario">+ Nuevo pago</button>
+      </div>
+
+      <div id="lista-pagos" class="lista-pagos"></div>
+    </section>
+
+    <section id="tab-historial" class="tab-panel">
+      <h2>Historial de pagos realizados</h2>
+      <div id="lista-historial" class="lista-pagos"></div>
+    </section>
+
+    <section id="tab-config" class="tab-panel">
+      <div class="config-grid">
+        <div class="card">
+          <h2>WhatsApp (API oficial de Meta)</h2>
+          <p class="ayuda-texto">El número del bot se configura por variables de entorno en el servidor (WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID). Usa este botón para confirmar que la conexión funciona: envía un recordatorio de prueba a los números configurados a la derecha.</p>
+          <div id="whatsapp-estado"></div>
+          <button id="btn-probar-whatsapp" class="btn-secundario">Enviar mensaje de prueba</button>
+        </div>
+
+        <div class="card">
+          <h2>Números que reciben notificaciones</h2>
+          <p class="ayuda-texto">Un número por línea o separados por coma. Incluye el código de país sin "+" (ej: 573001234567).</p>
+          <textarea id="input-numeros" rows="4" placeholder="573001234567"></textarea>
+
+          <h2>Hora del recordatorio diario</h2>
+          <input type="time" id="input-hora" />
+
+          <button id="btn-guardar-config" class="btn-primario">Guardar configuración</button>
+          <span id="config-guardado" class="ok-texto"></span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="dialog-pago">
+    <form id="form-pago" method="dialog">
+      <h2 id="form-titulo">Nuevo pago</h2>
+      <input type="hidden" id="pago-id" />
+
+      <label>Nombre del pago
+        <input type="text" id="pago-nombre" placeholder="Ej: SOAT camioneta ABC123" required />
+      </label>
+
+      <label>Categoría
+        <select id="pago-categoria">
+          <option>SOAT</option>
+          <option>Póliza</option>
+          <option>Nómina</option>
+          <option>Impuestos</option>
+          <option>Servicios públicos</option>
+          <option>Arriendo</option>
+          <option>Proveedores</option>
+          <option>Otro</option>
+        </select>
+      </label>
+
+      <label>Monto (COP)
+        <input type="number" id="pago-monto" min="0" step="1000" />
+      </label>
+
+      <label>Fecha de vencimiento
+        <input type="date" id="pago-fecha" required />
+      </label>
+
+      <label>Recurrencia
+        <select id="pago-recurrencia">
+          <option value="ninguna">No se repite</option>
+          <option value="mensual">Mensual</option>
+          <option value="bimestral">Bimestral</option>
+          <option value="trimestral">Trimestral</option>
+          <option value="semestral">Semestral</option>
+          <option value="anual">Anual</option>
+        </select>
+      </label>
+
+      <label>Avisar con cuántos días de anticipación
+        <input type="number" id="pago-dias-aviso" min="0" max="60" value="3" />
+      </label>
+
+      <label>Notas
+        <textarea id="pago-notas" rows="2"></textarea>
+      </label>
+
+      <div class="form-botones">
+        <button type="button" id="btn-cancelar" class="btn-secundario">Cancelar</button>
+        <button type="submit" id="btn-guardar-pago" class="btn-primario">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
