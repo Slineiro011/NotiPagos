@@ -112,6 +112,8 @@ const AYUDA = `👋 Hola, soy tu asistente de pagos. Puedes escribirme en lengua
 • "¿Qué pagos hay esta semana?"
 • "pagado 4" (marca el pago #4 como realizado)
 • "elimina el pago 4"
+• "avísame a mí" (activa los recordatorios diarios en este número)
+• "cambia la hora del recordatorio a las 8am"
 
 También puedes usar directamente: *hoy*, *semana*, *mes*, *vencidos*, *pendientes*.`;
 

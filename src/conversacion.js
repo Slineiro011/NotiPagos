@@ -1,5 +1,6 @@
 const dayjs = require("dayjs");
 const paymentsService = require("./services/paymentsService");
+const settingsService = require("./services/settingsService");
 const whatsapp = require("./whatsapp");
 const gemini = require("./gemini");
 
@@ -101,6 +102,28 @@ async function crearPago(numero, datos, textoOriginal) {
   );
 }
 
+async function activarRecordatorios(numero) {
+  await settingsService.agregarNumero(numero);
+  const hora = (await settingsService.get("hora_recordatorio")) || "08:00";
+  return responder(
+    numero,
+    `✅ Listo, quedaste registrada para recibir los recordatorios de pago todos los días a las ${hora}. Si quieres cambiar la hora, solo dime algo como "avísame a las 7:30".`
+  );
+}
+
+async function desactivarRecordatorios(numero) {
+  await settingsService.quitarNumero(numero);
+  return responder(numero, "🔕 Listo, ya no te voy a mandar recordatorios automáticos a este número. Puedes seguir preguntándome por los pagos cuando quieras.");
+}
+
+async function configurarHora(numero, hora) {
+  if (!/^\d{2}:\d{2}$/.test(hora || "")) {
+    return responder(numero, "No logré entender la hora. ¿Puedes decirla de nuevo? (ej: 'avísame a las 8am' o 'cambia la hora a las 19:30')");
+  }
+  await settingsService.set("hora_recordatorio", hora);
+  return responder(numero, `⏰ Listo, los recordatorios diarios ahora salen a las ${hora}.`);
+}
+
 async function manejarMensaje(numero, textoOriginal) {
   const texto = (textoOriginal || "").trim();
   if (!texto) return;
@@ -136,6 +159,12 @@ async function manejarMensaje(numero, textoOriginal) {
       return marcarPagado(numero, intencion.id);
     case "eliminar_pago":
       return eliminarPago(numero, intencion.id);
+    case "activar_recordatorios":
+      return activarRecordatorios(numero);
+    case "desactivar_recordatorios":
+      return desactivarRecordatorios(numero);
+    case "configurar_hora":
+      return configurarHora(numero, intencion.hora);
     default:
       return responder(numero, whatsapp.AYUDA);
   }

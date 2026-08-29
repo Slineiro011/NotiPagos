@@ -59,7 +59,16 @@ Reglas para calcular fecha_vencimiento en crear_pago:
 4) Eliminar/cancelar un pago programado (referenciando su ID):
 {"accion":"eliminar_pago","id":0}
 
-5) Saludo o pedido de ayuda / no se entiende la intencion o falta informacion clave (nombre o fecha) para crear el pago:
+5) Activar/registrar el numero desde el que escriben para que reciba los recordatorios automaticos diarios (ej: "avisame a mi", "quiero recibir los recordatorios", "activa mis avisos", "mandame los recordatorios a este numero"):
+{"accion":"activar_recordatorios"}
+
+6) Desactivar/dejar de recibir recordatorios en el numero desde el que escriben (ej: "ya no me avises", "desactiva mis recordatorios"):
+{"accion":"desactivar_recordatorios"}
+
+7) Cambiar la hora a la que se envian los recordatorios diarios (ej: "avisame todos los dias a las 8am", "cambia la hora del recordatorio a las 7:30", "mandame los avisos a las 9 de la noche"). Convierte siempre la hora a formato 24 horas HH:MM:
+{"accion":"configurar_hora","hora":"HH:MM"}
+
+8) Saludo o pedido de ayuda / no se entiende la intencion o falta informacion clave (nombre o fecha) para crear el pago:
 {"accion":"no_entendido"}
 
 Responde SOLO con el JSON, nada mas.`;

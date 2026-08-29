@@ -37,4 +37,34 @@ async function getNumerosWhatsapp() {
     .filter(Boolean);
 }
 
-module.exports = { getAll, get, set, setMany, getNumerosWhatsapp, DEFAULTS };
+function limpiarNumero(numero) {
+  return String(numero).replace(/[^\d]/g, "");
+}
+
+async function agregarNumero(numero) {
+  const limpio = limpiarNumero(numero);
+  const numeros = await getNumerosWhatsapp();
+  if (!numeros.includes(limpio)) {
+    numeros.push(limpio);
+    await set("numeros_whatsapp", numeros.join(","));
+  }
+  return numeros;
+}
+
+async function quitarNumero(numero) {
+  const limpio = limpiarNumero(numero);
+  const numeros = (await getNumerosWhatsapp()).filter((n) => n !== limpio);
+  await set("numeros_whatsapp", numeros.join(","));
+  return numeros;
+}
+
+module.exports = {
+  getAll,
+  get,
+  set,
+  setMany,
+  getNumerosWhatsapp,
+  agregarNumero,
+  quitarNumero,
+  DEFAULTS,
+};
