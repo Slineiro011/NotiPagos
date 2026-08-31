@@ -29,7 +29,7 @@ async function ejecutarRevisionDiaria() {
   let avisados = 0;
   for (const pago of aAvisar) {
     // Recordatorio automatico proactivo: usa plantilla aprobada (funciona fuera de la ventana de 24h).
-    const textoVariable = whatsapp.formatPago(pago);
+    const textoVariable = whatsapp.formatPagoLinea(pago);
     const resultados = await whatsapp.enviarATodos(numeros, textoVariable, { plantilla: true });
     const algunoOk = resultados.some((r) => r.ok);
     if (algunoOk) {

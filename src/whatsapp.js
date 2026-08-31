@@ -100,6 +100,24 @@ function formatPago(pago) {
   return `#${pago.id} *${pago.nombre}* — ${pago.empresa} (${pago.categoria})\n   💰 $${formatMoneda(pago.monto)} - ${cuando}`;
 }
 
+/**
+ * Version de una sola linea, sin saltos de linea ni tabs, para usar como
+ * variable de una plantilla de WhatsApp (Meta rechaza parametros con saltos
+ * de linea con el error 132018).
+ */
+function formatPagoLinea(pago) {
+  const hoy = dayjs().startOf("day");
+  const venc = dayjs(pago.fecha_vencimiento).startOf("day");
+  const dias = venc.diff(hoy, "day");
+  let cuando;
+  if (dias < 0) cuando = `vencido hace ${Math.abs(dias)} dia(s)`;
+  else if (dias === 0) cuando = "vence HOY";
+  else if (dias === 1) cuando = "vence MAÑANA";
+  else cuando = `vence en ${dias} dias (${pago.fecha_vencimiento})`;
+
+  return `#${pago.id} ${pago.nombre} - ${pago.empresa} (${pago.categoria}) - $${formatMoneda(pago.monto)} - ${cuando}`;
+}
+
 function listaMensaje(titulo, pagos) {
   if (!pagos.length) return `${titulo}\n\nNo hay pagos pendientes en ese rango. 🎉`;
   const cuerpo = pagos.map(formatPago).join("\n\n");
@@ -122,6 +140,7 @@ module.exports = {
   enviarPlantilla,
   enviarATodos,
   formatPago,
+  formatPagoLinea,
   listaMensaje,
   formatMoneda,
   AYUDA,
