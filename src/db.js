@@ -62,6 +62,12 @@ async function migrar() {
       datos JSONB NOT NULL DEFAULT '{}',
       actualizado_en TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+
+    CREATE TABLE IF NOT EXISTS dispositivos (
+      token TEXT PRIMARY KEY,
+      plataforma TEXT NOT NULL DEFAULT 'android',
+      creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
   `);
 }
 

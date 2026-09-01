@@ -2,8 +2,17 @@ import 'package:flutter/material.dart';
 import 'screens/pagos_screen.dart';
 import 'screens/historial_screen.dart';
 import 'screens/configuracion_screen.dart';
+import 'services/notificaciones_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await NotificacionesService.inicializar();
+  } catch (e) {
+    // Si Firebase falla al iniciar (sin conexion, etc.) la app sigue
+    // funcionando normal, solo sin notificaciones push por ahora.
+    debugPrint('No se pudo inicializar las notificaciones push: $e');
+  }
   runApp(const NotiPagosApp());
 }
 

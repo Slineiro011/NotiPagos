@@ -4,6 +4,7 @@ const dayjs = require("dayjs");
 const paymentsService = require("./services/paymentsService");
 const settingsService = require("./services/settingsService");
 const whatsapp = require("./whatsapp");
+const push = require("./push");
 
 async function ejecutarRevisionDiaria() {
   const hoy = dayjs().format("YYYY-MM-DD");
@@ -21,22 +22,31 @@ async function ejecutarRevisionDiaria() {
   if (!aAvisar.length) return { avisados: 0 };
 
   const numeros = await settingsService.getNumerosWhatsapp();
-  if (!numeros.length) {
-    console.warn("No hay numeros de WhatsApp configurados para enviar recordatorios.");
-    return { avisados: 0, error: "sin_numeros" };
-  }
 
   let avisados = 0;
   for (const pago of aAvisar) {
-    // Recordatorio automatico proactivo: usa plantilla aprobada (funciona fuera de la ventana de 24h).
-    const textoVariable = whatsapp.formatPagoLinea(pago);
-    const resultados = await whatsapp.enviarATodos(numeros, textoVariable, { plantilla: true });
-    const algunoOk = resultados.some((r) => r.ok);
+    let algunoOk = false;
+
+    // Canal 1: WhatsApp. Recordatorio automatico proactivo, usa plantilla aprobada
+    // (funciona fuera de la ventana de 24h).
+    if (numeros.length) {
+      const textoVariable = whatsapp.formatPagoLinea(pago);
+      const resultadosWhatsapp = await whatsapp.enviarATodos(numeros, textoVariable, { plantilla: true });
+      if (resultadosWhatsapp.some((r) => r.ok)) algunoOk = true;
+      else console.error(`No se pudo enviar el recordatorio de WhatsApp del pago #${pago.id}:`, resultadosWhatsapp);
+    }
+
+    // Canal 2: notificacion push a la app movil (independiente de WhatsApp).
+    const resultadoPush = await push.enviarATodos({
+      titulo: "🔔 Recordatorio de pago",
+      cuerpo: whatsapp.formatPagoLinea(pago),
+      datos: { pagoId: String(pago.id) },
+    });
+    if (resultadoPush.enviados > 0) algunoOk = true;
+
     if (algunoOk) {
       await paymentsService.registrarAviso(pago.id, hoy);
       avisados++;
-    } else {
-      console.error(`No se pudo enviar el recordatorio del pago #${pago.id}:`, resultados);
     }
   }
   return { avisados };

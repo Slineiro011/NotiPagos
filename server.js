@@ -7,6 +7,7 @@ const pagosRouter = require("./src/routes/pagos");
 const configuracionRouter = require("./src/routes/configuracion");
 const webhookRouter = require("./src/routes/webhook");
 const cronRouter = require("./src/routes/cron");
+const dispositivosRouter = require("./src/routes/dispositivos");
 const scheduler = require("./src/scheduler");
 
 const app = express();
@@ -19,6 +20,7 @@ app.use("/api/pagos", pagosRouter);
 app.use("/api/configuracion", configuracionRouter);
 app.use("/webhook/whatsapp", webhookRouter);
 app.use("/api/cron", cronRouter);
+app.use("/api/dispositivos", dispositivosRouter);
 
 // Manejador de errores: cualquier ruta async que llame next(err) cae aqui.
 app.use((err, req, res, next) => {

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1002783926707",
+    "project_id": "notipagos-41b8f",
+    "storage_bucket": "notipagos-41b8f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1002783926707:android:eb1c7a363b3033d21243c6",
+        "android_client_info": {
+          "package_name": "com.smartlatam.notipagos_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC3LoRzvJzgmNTLnOJEkKP7OBsyFrBQGzY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
