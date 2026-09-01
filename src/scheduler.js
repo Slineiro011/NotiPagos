@@ -42,6 +42,7 @@ async function ejecutarRevisionDiaria() {
       cuerpo: whatsapp.formatPagoLinea(pago),
       datos: { pagoId: String(pago.id) },
     });
+    console.log(`[push] Resultado para el pago #${pago.id}:`, resultadoPush);
     if (resultadoPush.enviados > 0) algunoOk = true;
 
     if (algunoOk) {
