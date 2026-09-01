@@ -1,5 +1,6 @@
 const fs = require("fs");
-const admin = require("firebase-admin");
+const { initializeApp, cert } = require("firebase-admin/app");
+const { getMessaging } = require("firebase-admin/messaging");
 const dispositivosService = require("./services/dispositivosService");
 
 // En Render se sube como "Secret File" en /etc/secrets/firebase-service-account.json.
@@ -27,7 +28,7 @@ function obtenerApp() {
   }
 
   const credencial = JSON.parse(fs.readFileSync(ruta, "utf8"));
-  appInicializada = admin.initializeApp({ credential: admin.credential.cert(credencial) });
+  appInicializada = initializeApp({ credential: cert(credencial) });
   return appInicializada;
 }
 
@@ -47,7 +48,7 @@ async function enviarATodos({ titulo, cuerpo, datos = {} }) {
   };
 
   try {
-    const resultado = await admin.messaging(app).sendEachForMulticast(mensaje);
+    const resultado = await getMessaging(app).sendEachForMulticast(mensaje);
 
     // Limpia tokens que ya no son validos (app desinstalada, etc.)
     const tokensInvalidos = [];
