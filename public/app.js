@@ -1,9 +1,74 @@
 const API = "/api";
+const CLAVE_TOKEN = "notipagos_token";
+
+// ---------- Autenticación ----------
+function getToken() {
+  return localStorage.getItem(CLAVE_TOKEN);
+}
+
+function setToken(token) {
+  if (token) localStorage.setItem(CLAVE_TOKEN, token);
+  else localStorage.removeItem(CLAVE_TOKEN);
+}
+
+async function apiFetch(path, options = {}) {
+  const headers = { ...(options.headers || {}) };
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const res = await fetch(`${API}${path}`, { ...options, headers });
+  if (res.status === 401) {
+    mostrarLogin("Tu sesión expiró, vuelve a entrar.");
+    throw new Error("No autenticado");
+  }
+  return res;
+}
+
+function mostrarLogin(mensaje) {
+  setToken(null);
+  document.getElementById("app-contenido").hidden = true;
+  document.getElementById("pantalla-login").style.display = "flex";
+  document.getElementById("login-error").textContent = mensaje || "";
+}
+
+function mostrarApp() {
+  document.getElementById("pantalla-login").style.display = "none";
+  document.getElementById("app-contenido").hidden = false;
+  cargarPagos();
+  cargarEmpresas();
+}
+
+document.getElementById("form-login").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const usuario = document.getElementById("login-usuario").value.trim();
+  const password = document.getElementById("login-password").value;
+  const errorEl = document.getElementById("login-error");
+  errorEl.textContent = "";
+
+  try {
+    const res = await fetch(`${API}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ usuario, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errorEl.textContent = data.error || "No se pudo iniciar sesión";
+      return;
+    }
+    setToken(data.token);
+    mostrarApp();
+  } catch {
+    errorEl.textContent = "No se pudo conectar con el servidor";
+  }
+});
+
+document.getElementById("btn-salir").addEventListener("click", () => mostrarLogin());
 
 // ---------- Navegación por pestañas ----------
-document.querySelectorAll(".tab-btn").forEach((btn) => {
+document.querySelectorAll(".tab-btn[data-tab]").forEach((btn) => {
   btn.addEventListener("click", () => {
-    document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+    document.querySelectorAll(".tab-btn[data-tab]").forEach((b) => b.classList.remove("active"));
     document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
     btn.classList.add("active");
     document.getElementById(`tab-${btn.dataset.tab}`).classList.add("active");
@@ -38,7 +103,7 @@ let filtroActual = "pendientes";
 let empresaActual = "";
 
 async function cargarEmpresas() {
-  const res = await fetch(`${API}/pagos/empresas/lista`);
+  const res = await apiFetch("/pagos/empresas/lista");
   const empresas = await res.json();
 
   const selectFiltro = document.getElementById("filtro-empresa");
@@ -59,7 +124,7 @@ async function cargarEmpresas() {
 async function cargarPagos() {
   const params = new URLSearchParams({ filtro: filtroActual });
   if (empresaActual) params.set("empresa", empresaActual);
-  const res = await fetch(`${API}/pagos?${params.toString()}`);
+  const res = await apiFetch(`/pagos?${params.toString()}`);
   const pagos = await res.json();
   const contenedor = document.getElementById("lista-pagos");
   contenedor.innerHTML = "";
@@ -107,13 +172,13 @@ document.getElementById("filtro-empresa").addEventListener("change", (e) => {
 async function manejarAccion(accion, id, pago) {
   if (accion === "pagado") {
     if (!confirm(`¿Marcar "${pago.nombre}" como pagado?`)) return;
-    await fetch(`${API}/pagos/${id}/pagado`, { method: "POST" });
+    await apiFetch(`/pagos/${id}/pagado`, { method: "POST" });
     cargarPagos();
   } else if (accion === "editar") {
     abrirFormulario(pago);
   } else if (accion === "eliminar") {
     if (!confirm(`¿Eliminar "${pago.nombre}" definitivamente?`)) return;
-    await fetch(`${API}/pagos/${id}`, { method: "DELETE" });
+    await apiFetch(`/pagos/${id}`, { method: "DELETE" });
     cargarPagos();
   }
 }
@@ -129,7 +194,7 @@ document.querySelectorAll(".filtro-btn").forEach((btn) => {
 
 // ---------- Historial ----------
 async function cargarHistorial() {
-  const res = await fetch(`${API}/pagos/historial`);
+  const res = await apiFetch("/pagos/historial");
   const historial = await res.json();
   const contenedor = document.getElementById("lista-historial");
   contenedor.innerHTML = "";
@@ -187,13 +252,13 @@ form.addEventListener("submit", async (e) => {
   };
 
   if (id) {
-    await fetch(`${API}/pagos/${id}`, {
+    await apiFetch(`/pagos/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(datos),
     });
   } else {
-    await fetch(`${API}/pagos`, {
+    await apiFetch("/pagos", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(datos),
@@ -205,7 +270,7 @@ form.addEventListener("submit", async (e) => {
 
 // ---------- Configuración ----------
 async function cargarConfiguracion() {
-  const res = await fetch(`${API}/configuracion`);
+  const res = await apiFetch("/configuracion");
   const config = await res.json();
   document.getElementById("input-numeros").value = (config.numeros_whatsapp || "").split(",").filter(Boolean).join("\n");
   document.getElementById("input-hora").value = config.hora_recordatorio || "08:00";
@@ -221,7 +286,7 @@ document.getElementById("btn-guardar-config").addEventListener("click", async ()
     .join(",");
   const hora = document.getElementById("input-hora").value;
 
-  await fetch(`${API}/configuracion`, {
+  await apiFetch("/configuracion", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ numeros_whatsapp: numeros, hora_recordatorio: hora }),
@@ -235,7 +300,7 @@ document.getElementById("btn-guardar-config").addEventListener("click", async ()
 document.getElementById("btn-probar-whatsapp").addEventListener("click", async () => {
   const div = document.getElementById("whatsapp-estado");
   div.textContent = "Enviando...";
-  const res = await fetch(`${API}/configuracion/whatsapp/prueba`, { method: "POST" });
+  const res = await apiFetch("/configuracion/whatsapp/prueba", { method: "POST" });
   const data = await res.json();
   if (data.error) {
     div.innerHTML = `<span style="color: var(--danger)">❌ ${data.error}</span>`;
@@ -250,5 +315,8 @@ document.getElementById("btn-probar-whatsapp").addEventListener("click", async (
 });
 
 // ---------- Inicio ----------
-cargarPagos();
-cargarEmpresas();
+if (getToken()) {
+  mostrarApp();
+} else {
+  mostrarLogin();
+}

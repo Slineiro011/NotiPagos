@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'screens/pagos_screen.dart';
 import 'screens/historial_screen.dart';
 import 'screens/configuracion_screen.dart';
+import 'screens/login_screen.dart';
+import 'services/api_service.dart';
 import 'services/notificaciones_service.dart';
 
 void main() async {
@@ -29,13 +31,60 @@ class NotiPagosApp extends StatelessWidget {
         useMaterial3: true,
         appBarTheme: const AppBarTheme(centerTitle: false),
       ),
-      home: const HomeShell(),
+      home: const AuthGate(),
     );
   }
 }
 
+class AuthGate extends StatefulWidget {
+  const AuthGate({super.key});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  bool _cargando = true;
+  bool _autenticado = false;
+
+  @override
+  void initState() {
+    super.initState();
+    ApiService.onNoAutenticado = () {
+      if (mounted) setState(() => _autenticado = false);
+    };
+    _revisarSesion();
+  }
+
+  Future<void> _revisarSesion() async {
+    final token = await ApiService.getToken();
+    setState(() {
+      _autenticado = token != null;
+      _cargando = false;
+    });
+  }
+
+  Future<void> _salir() async {
+    await ApiService.cerrarSesion();
+    setState(() => _autenticado = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_cargando) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (!_autenticado) {
+      return LoginScreen(onLoginExitoso: () => setState(() => _autenticado = true));
+    }
+    return HomeShell(onSalir: _salir);
+  }
+}
+
 class HomeShell extends StatefulWidget {
-  const HomeShell({super.key});
+  final VoidCallback onSalir;
+
+  const HomeShell({super.key, required this.onSalir});
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -55,7 +104,16 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(_titulos[_indice])),
+      appBar: AppBar(
+        title: Text(_titulos[_indice]),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Salir',
+            onPressed: widget.onSalir,
+          ),
+        ],
+      ),
       body: IndexedStack(index: _indice, children: _pantallas),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _indice,

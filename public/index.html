@@ -7,12 +7,28 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <div id="pantalla-login" class="login-pantalla">
+    <form id="form-login" class="login-caja">
+      <h1>💳 Pagos de la empresa</h1>
+      <label>Usuario
+        <input type="text" id="login-usuario" autocomplete="username" required />
+      </label>
+      <label>Contraseña
+        <input type="password" id="login-password" autocomplete="current-password" required />
+      </label>
+      <button type="submit" class="btn-primario">Entrar</button>
+      <p id="login-error" class="login-error"></p>
+    </form>
+  </div>
+
+  <div id="app-contenido" hidden>
   <header class="topbar">
     <h1>💳 Pagos de la empresa</h1>
     <nav class="tabs">
       <button class="tab-btn active" data-tab="pagos">Pagos</button>
       <button class="tab-btn" data-tab="historial">Historial</button>
       <button class="tab-btn" data-tab="config">WhatsApp / Configuración</button>
+      <button id="btn-salir" class="tab-btn" style="margin-left:auto">Salir</button>
     </nav>
   </header>
 
@@ -127,6 +143,7 @@
       </div>
     </form>
   </dialog>
+  </div>
 
   <script src="app.js"></script>
 </body>

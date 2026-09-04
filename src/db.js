@@ -68,6 +68,14 @@ async function migrar() {
       plataforma TEXT NOT NULL DEFAULT 'android',
       creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+
+    CREATE TABLE IF NOT EXISTS usuarios (
+      id SERIAL PRIMARY KEY,
+      usuario TEXT UNIQUE NOT NULL,
+      nombre TEXT NOT NULL DEFAULT '',
+      password_hash TEXT NOT NULL,
+      creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
   `);
 }
 
