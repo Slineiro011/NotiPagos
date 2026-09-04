@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 
 class ConfiguracionScreen extends StatefulWidget {
-  const ConfiguracionScreen({super.key});
+  final VoidCallback onSalir;
+
+  const ConfiguracionScreen({super.key, required this.onSalir});
 
   @override
   State<ConfiguracionScreen> createState() => _ConfiguracionScreenState();
@@ -140,6 +142,16 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                 const SizedBox(height: 10),
                 OutlinedButton(onPressed: _guardarUrl, child: const Text('Guardar servidor')),
               ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: widget.onSalir,
+            icon: const Icon(Icons.logout, color: Colors.red),
+            label: const Text('Cerrar sesión', style: TextStyle(color: Colors.red)),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(46),
+              side: const BorderSide(color: Colors.red),
             ),
           ),
           const SizedBox(height: 24),

@@ -95,14 +95,13 @@ class _HomeShellState extends State<HomeShell> {
 
   static const _titulos = ['💳 Pagos', 'Historial', 'WhatsApp / Configuración'];
 
-  final _pantallas = const [
-    PagosScreen(),
-    HistorialScreen(),
-    ConfiguracionScreen(),
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final pantallas = [
+      const PagosScreen(),
+      const HistorialScreen(),
+      ConfiguracionScreen(onSalir: widget.onSalir),
+    ];
     return Scaffold(
       appBar: AppBar(
         title: Text(_titulos[_indice]),
@@ -114,7 +113,7 @@ class _HomeShellState extends State<HomeShell> {
           ),
         ],
       ),
-      body: IndexedStack(index: _indice, children: _pantallas),
+      body: IndexedStack(index: _indice, children: pantallas),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _indice,
         onDestinationSelected: (i) => setState(() => _indice = i),
