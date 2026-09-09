@@ -101,6 +101,7 @@ document.querySelectorAll(".tab-btn[data-tab]").forEach((btn) => {
     document.getElementById(`tab-${btn.dataset.tab}`).classList.add("active");
     if (btn.dataset.tab === "historial") cargarHistorial();
     if (btn.dataset.tab === "config") cargarConfiguracion();
+    if (btn.dataset.tab === "usuarios") cargarUsuarios();
   });
 });
 
@@ -338,6 +339,108 @@ document.getElementById("btn-probar-whatsapp").addEventListener("click", async (
     div.innerHTML = `<span style="color: var(--danger)">❌ ${fallos.map((f) => f.numero + ": " + f.error).join(" · ")}</span>`;
   } else {
     div.innerHTML = `<span style="color: var(--ok)">✅ Mensaje de prueba enviado correctamente</span>`;
+  }
+});
+
+// ---------- Usuarios (solo jefe) ----------
+async function cargarUsuarios() {
+  const res = await apiFetch("/usuarios");
+  const usuarios = await res.json();
+  const contenedor = document.getElementById("lista-usuarios");
+  contenedor.innerHTML = "";
+
+  if (!usuarios.length) {
+    contenedor.innerHTML = `<div class="vacio">No hay usuarios registrados.</div>`;
+    return;
+  }
+
+  const sesionActual = getSesion();
+  for (const u of usuarios) {
+    const div = document.createElement("div");
+    div.className = "pago-card";
+    div.innerHTML = `
+      <div class="pago-info">
+        <span class="pago-nombre">${u.nombre || u.usuario}</span>
+        <span class="pago-estado ${u.rol === "jefe" ? "estado-pronto" : "estado-normal"}">${u.rol === "jefe" ? "Jefe" : "Usuario"}</span>
+        <div class="pago-meta">Usuario: ${u.usuario}${u.telefono ? ` · WhatsApp: ${u.telefono}` : " · sin WhatsApp vinculado"}</div>
+      </div>
+      <div class="pago-acciones">
+        <button data-accion="editar-usuario">Editar</button>
+        ${u.usuario === sesionActual?.usuario ? "" : `<button class="btn-eliminar" data-accion="eliminar-usuario">Eliminar</button>`}
+      </div>
+    `;
+    div.querySelectorAll("button").forEach((btn) => {
+      btn.addEventListener("click", () => manejarAccionUsuario(btn.dataset.accion, u));
+    });
+    contenedor.appendChild(div);
+  }
+}
+
+async function manejarAccionUsuario(accion, usuario) {
+  if (accion === "editar-usuario") {
+    abrirFormularioUsuario(usuario);
+  } else if (accion === "eliminar-usuario") {
+    if (!confirm(`¿Eliminar el acceso de "${usuario.nombre || usuario.usuario}"? Sus pagos ya creados no se borran.`)) return;
+    await apiFetch(`/usuarios/${encodeURIComponent(usuario.usuario)}`, { method: "DELETE" });
+    cargarUsuarios();
+  }
+}
+
+const dialogUsuario = document.getElementById("dialog-usuario");
+const formUsuario = document.getElementById("form-usuario");
+
+document.getElementById("btn-nuevo-usuario").addEventListener("click", () => abrirFormularioUsuario());
+document.getElementById("btn-cancelar-usuario").addEventListener("click", () => dialogUsuario.close());
+
+function abrirFormularioUsuario(usuario) {
+  document.getElementById("usuario-form-titulo").textContent = usuario ? "Editar usuario" : "Nuevo usuario";
+  document.getElementById("usuario-original").value = usuario?.usuario || "";
+  const inputUsuario = document.getElementById("usuario-usuario");
+  inputUsuario.value = usuario?.usuario || "";
+  inputUsuario.disabled = !!usuario;
+  document.getElementById("usuario-nombre").value = usuario?.nombre || "";
+  document.getElementById("usuario-password").value = "";
+  document.getElementById("usuario-password").required = !usuario;
+  document.getElementById("usuario-password-nota").textContent = usuario ? "(déjala vacía para no cambiarla)" : "";
+  document.getElementById("usuario-rol").value = usuario?.rol || "usuario";
+  document.getElementById("usuario-telefono").value = usuario?.telefono || "";
+  dialogUsuario.showModal();
+}
+
+formUsuario.addEventListener("submit", async (e) => {
+  const usuarioOriginal = document.getElementById("usuario-original").value;
+  const datos = {
+    usuario: document.getElementById("usuario-usuario").value.trim(),
+    nombre: document.getElementById("usuario-nombre").value.trim(),
+    rol: document.getElementById("usuario-rol").value,
+    telefono: document.getElementById("usuario-telefono").value.trim(),
+  };
+  const password = document.getElementById("usuario-password").value;
+
+  try {
+    let res;
+    if (usuarioOriginal) {
+      const cambios = { ...datos };
+      if (password) cambios.password = password;
+      res = await apiFetch(`/usuarios/${encodeURIComponent(usuarioOriginal)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(cambios),
+      });
+    } else {
+      res = await apiFetch("/usuarios", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...datos, password }),
+      });
+    }
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || `Error del servidor (${res.status})`);
+    }
+    cargarUsuarios();
+  } catch (err) {
+    alert("Error al guardar el usuario: " + err.message);
   }
 });
 

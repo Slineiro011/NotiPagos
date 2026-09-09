@@ -19,6 +19,13 @@ async function getByTelefono(telefono) {
   return rows[0] || null;
 }
 
+async function listar() {
+  const { rows } = await pool.query(
+    "SELECT id, usuario, nombre, rol, telefono, creado_en FROM usuarios ORDER BY creado_en ASC"
+  );
+  return rows;
+}
+
 async function crear(usuario, nombre, passwordPlano, { rol = "usuario", telefono = null } = {}) {
   const hash = await bcrypt.hash(passwordPlano, 10);
   const rolFinal = rol === "jefe" ? "jefe" : "usuario";
@@ -35,6 +42,28 @@ async function crear(usuario, nombre, passwordPlano, { rol = "usuario", telefono
   return rows[0];
 }
 
+/** Edita nombre/rol/telefono y, opcionalmente, la contraseña (si se pasa). No crea usuarios nuevos. */
+async function actualizar(usuario, { nombre, rol, telefono, password } = {}) {
+  const actual = await getByUsuario(usuario);
+  if (!actual) return null;
+
+  const nuevoHash = password ? await bcrypt.hash(password, 10) : actual.password_hash;
+  const rolFinal = rol === "jefe" || rol === "usuario" ? rol : actual.rol;
+  const telefonoFinal = telefono !== undefined ? limpiarTelefono(telefono) : actual.telefono;
+
+  const { rows } = await pool.query(
+    `UPDATE usuarios SET nombre=$1, rol=$2, telefono=$3, password_hash=$4 WHERE usuario=$5
+     RETURNING id, usuario, nombre, rol, telefono`,
+    [nombre ?? actual.nombre, rolFinal, telefonoFinal, nuevoHash, usuario]
+  );
+  return rows[0];
+}
+
+async function eliminar(usuario) {
+  const { rowCount } = await pool.query("DELETE FROM usuarios WHERE usuario = $1", [usuario]);
+  return rowCount > 0;
+}
+
 async function verificarPassword(usuario, passwordPlano) {
   const fila = await getByUsuario(usuario);
   if (!fila) return null;
@@ -42,4 +71,4 @@ async function verificarPassword(usuario, passwordPlano) {
   return ok ? { id: fila.id, usuario: fila.usuario, nombre: fila.nombre, rol: fila.rol } : null;
 }
 
-module.exports = { getByUsuario, getByTelefono, crear, verificarPassword };
+module.exports = { getByUsuario, getByTelefono, listar, crear, actualizar, eliminar, verificarPassword };

@@ -9,7 +9,8 @@ const webhookRouter = require("./src/routes/webhook");
 const cronRouter = require("./src/routes/cron");
 const dispositivosRouter = require("./src/routes/dispositivos");
 const authRouter = require("./src/routes/auth");
-const { requireAuth } = require("./src/auth");
+const usuariosRouter = require("./src/routes/usuarios");
+const { requireAuth, requireJefe } = require("./src/auth");
 const scheduler = require("./src/scheduler");
 
 const app = express();
@@ -21,6 +22,7 @@ app.use(express.static(path.join(__dirname, "public")));
 app.use("/api/auth", authRouter);
 app.use("/api/pagos", requireAuth, pagosRouter);
 app.use("/api/configuracion", requireAuth, configuracionRouter);
+app.use("/api/usuarios", requireAuth, requireJefe, usuariosRouter);
 app.use("/webhook/whatsapp", webhookRouter);
 app.use("/api/cron", cronRouter);
 app.use("/api/dispositivos", dispositivosRouter);
