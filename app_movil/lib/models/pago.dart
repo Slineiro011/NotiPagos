@@ -9,6 +9,8 @@ class Pago {
   final int diasAviso;
   final String estado;
   final String notas;
+  final String? creadoPor;
+  final String? creadoPorNombre;
 
   Pago({
     required this.id,
@@ -21,6 +23,8 @@ class Pago {
     required this.diasAviso,
     required this.estado,
     required this.notas,
+    this.creadoPor,
+    this.creadoPorNombre,
   });
 
   factory Pago.fromJson(Map<String, dynamic> json) {
@@ -35,6 +39,8 @@ class Pago {
       diasAviso: (json['dias_aviso'] is num) ? (json['dias_aviso'] as num).toInt() : 3,
       estado: (json['estado'] ?? 'pendiente') as String,
       notas: (json['notas'] ?? '') as String,
+      creadoPor: json['creado_por'] as String?,
+      creadoPorNombre: json['creado_por_nombre'] as String?,
     );
   }
 

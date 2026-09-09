@@ -14,7 +14,10 @@ class PagosScreen extends StatefulWidget {
 class _PagosScreenState extends State<PagosScreen> {
   String _filtro = 'pendientes';
   String? _empresaFiltro;
+  String? _usuarioFiltro;
   List<String> _empresas = [];
+  List<Map<String, dynamic>> _usuarios = [];
+  bool _esJefe = false;
   Future<List<Pago>>? _futurePagos;
 
   final _filtros = const [
@@ -31,11 +34,12 @@ class _PagosScreenState extends State<PagosScreen> {
     super.initState();
     _cargar();
     _cargarEmpresas();
+    _cargarUsuarios();
   }
 
   void _cargar() {
     setState(() {
-      _futurePagos = ApiService.getPagos(filtro: _filtro, empresa: _empresaFiltro);
+      _futurePagos = ApiService.getPagos(filtro: _filtro, empresa: _empresaFiltro, usuario: _usuarioFiltro);
     });
   }
 
@@ -45,6 +49,22 @@ class _PagosScreenState extends State<PagosScreen> {
       if (mounted) setState(() => _empresas = empresas);
     } catch (_) {
       // silencioso: el filtro de empresa simplemente queda vacio
+    }
+  }
+
+  Future<void> _cargarUsuarios() async {
+    final esJefe = await ApiService.esJefe();
+    if (!esJefe) return;
+    try {
+      final usuarios = await ApiService.getUsuarios();
+      if (mounted) {
+        setState(() {
+          _esJefe = true;
+          _usuarios = usuarios;
+        });
+      }
+    } catch (_) {
+      // silencioso: el filtro de usuario simplemente queda vacio
     }
   }
 
@@ -142,6 +162,32 @@ class _PagosScreenState extends State<PagosScreen> {
                 ],
                 onChanged: (v) {
                   _empresaFiltro = v;
+                  _cargar();
+                },
+              ),
+            ),
+          if (_esJefe && _usuarios.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+              child: DropdownButtonFormField<String?>(
+                initialValue: _usuarioFiltro,
+                isDense: true,
+                decoration: const InputDecoration(
+                  labelText: 'Usuario',
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                ),
+                items: [
+                  const DropdownMenuItem(value: null, child: Text('Todos los usuarios')),
+                  ..._usuarios.map(
+                    (u) => DropdownMenuItem(
+                      value: u['usuario'] as String,
+                      child: Text((u['nombre'] as String?)?.isNotEmpty == true ? u['nombre'] as String : u['usuario'] as String),
+                    ),
+                  ),
+                ],
+                onChanged: (v) {
+                  _usuarioFiltro = v;
                   _cargar();
                 },
               ),

@@ -62,6 +62,7 @@ function mostrarApp() {
   document.querySelectorAll(".solo-usuario").forEach((el) => (el.style.display = esJefe() ? "none" : ""));
   cargarPagos();
   cargarEmpresas();
+  cargarUsuariosFiltro();
 }
 
 document.getElementById("form-login").addEventListener("submit", async (e) => {
@@ -129,6 +130,7 @@ function estadoVisual(pago) {
 // ---------- Listado de pagos ----------
 let filtroActual = "pendientes";
 let empresaActual = "";
+let usuarioFiltroActual = "";
 
 async function cargarEmpresas() {
   const res = await apiFetch("/pagos/empresas/lista");
@@ -149,9 +151,28 @@ async function cargarEmpresas() {
   datalist.innerHTML = empresas.map((emp) => `<option value="${emp}"></option>`).join("");
 }
 
+async function cargarUsuariosFiltro() {
+  if (!esJefe()) return;
+  const res = await apiFetch("/usuarios");
+  if (!res.ok) return;
+  const usuarios = await res.json();
+
+  const selectFiltro = document.getElementById("filtro-usuario");
+  const valorPrevio = selectFiltro.value;
+  selectFiltro.innerHTML = `<option value="">Todos los usuarios</option>`;
+  for (const u of usuarios) {
+    const opt = document.createElement("option");
+    opt.value = u.usuario;
+    opt.textContent = u.nombre || u.usuario;
+    selectFiltro.appendChild(opt);
+  }
+  selectFiltro.value = valorPrevio;
+}
+
 async function cargarPagos() {
   const params = new URLSearchParams({ filtro: filtroActual });
   if (empresaActual) params.set("empresa", empresaActual);
+  if (usuarioFiltroActual) params.set("usuario", usuarioFiltroActual);
   const res = await apiFetch(`/pagos?${params.toString()}`);
   const pagos = await res.json();
   const contenedor = document.getElementById("lista-pagos");
@@ -171,12 +192,13 @@ function crearTarjetaPago(pago) {
   const div = document.createElement("div");
   div.className = "pago-card";
   const estado = estadoVisual(pago);
+  const creador = pago.creado_por_nombre || pago.creado_por;
 
   div.innerHTML = `
     <div class="pago-info">
       <span class="pago-nombre">${pago.nombre}</span>
       <span class="pago-estado ${estado.clase}">${estado.texto}</span>
-      <div class="pago-meta">🏢 ${pago.empresa} · ${pago.categoria} · $${formatMoneda(pago.monto)} · vence ${pago.fecha_vencimiento}${pago.recurrencia !== "ninguna" ? ` · se repite: ${pago.recurrencia}` : ""}</div>
+      <div class="pago-meta">🏢 ${pago.empresa} · ${pago.categoria} · $${formatMoneda(pago.monto)} · vence ${pago.fecha_vencimiento}${pago.recurrencia !== "ninguna" ? ` · se repite: ${pago.recurrencia}` : ""}${creador ? ` · 👤 ${creador}` : ""}</div>
     </div>
     <div class="pago-acciones">
       ${pago.estado === "pendiente" ? `<button class="btn-pagado" data-accion="pagado" data-id="${pago.id}">✔ Pagado</button>` : ""}
@@ -194,6 +216,11 @@ function crearTarjetaPago(pago) {
 
 document.getElementById("filtro-empresa").addEventListener("change", (e) => {
   empresaActual = e.target.value;
+  cargarPagos();
+});
+
+document.getElementById("filtro-usuario").addEventListener("change", (e) => {
+  usuarioFiltroActual = e.target.value;
   cargarPagos();
 });
 
@@ -235,10 +262,11 @@ async function cargarHistorial() {
   for (const h of historial) {
     const div = document.createElement("div");
     div.className = "pago-card";
+    const creador = h.creado_por_nombre || h.creado_por;
     div.innerHTML = `
       <div class="pago-info">
         <span class="pago-nombre">${h.nombre}</span>
-        <div class="pago-meta">🏢 ${h.empresa} · ${h.categoria} · $${formatMoneda(h.monto)} · pagado el ${h.fecha_pago}</div>
+        <div class="pago-meta">🏢 ${h.empresa} · ${h.categoria} · $${formatMoneda(h.monto)} · pagado el ${h.fecha_pago}${creador ? ` · 👤 ${creador}` : ""}</div>
       </div>
     `;
     contenedor.appendChild(div);

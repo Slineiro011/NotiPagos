@@ -77,7 +77,8 @@ class PagoCard extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 '🏢 ${pago.empresa} · ${pago.categoria} · \$${_formatoMoneda.format(pago.monto)} · vence ${pago.fechaVencimiento}'
-                '${pago.recurrencia != 'ninguna' ? ' · se repite: ${pago.recurrencia}' : ''}',
+                '${pago.recurrencia != 'ninguna' ? ' · se repite: ${pago.recurrencia}' : ''}'
+                '${(pago.creadoPorNombre ?? pago.creadoPor) != null ? ' · 👤 ${pago.creadoPorNombre ?? pago.creadoPor}' : ''}',
                 style: TextStyle(color: Colors.grey.shade600, fontSize: 12.5),
               ),
               const SizedBox(height: 10),

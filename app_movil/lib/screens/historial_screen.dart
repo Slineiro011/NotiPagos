@@ -49,6 +49,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
               itemBuilder: (context, i) {
                 final h = historial[i];
                 final monto = (h['monto'] is num) ? (h['monto'] as num).toDouble() : 0.0;
+                final creador = (h['creado_por_nombre'] ?? h['creado_por']) as String?;
                 return Card(
                   margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   child: Padding(
@@ -59,7 +60,8 @@ class _HistorialScreenState extends State<HistorialScreen> {
                         Text('${h['nombre']}', style: const TextStyle(fontWeight: FontWeight.w600)),
                         const SizedBox(height: 4),
                         Text(
-                          '🏢 ${h['empresa']} · ${h['categoria']} · \$${_formatoMoneda.format(monto)} · pagado el ${h['fecha_pago']}',
+                          '🏢 ${h['empresa']} · ${h['categoria']} · \$${_formatoMoneda.format(monto)} · pagado el ${h['fecha_pago']}'
+                          '${creador != null ? ' · 👤 $creador' : ''}',
                           style: TextStyle(color: Colors.grey.shade600, fontSize: 12.5),
                         ),
                       ],

@@ -11,6 +11,14 @@ const MESES_POR_RECURRENCIA = {
 
 const RECURRENCIAS = ["ninguna", ...Object.keys(MESES_POR_RECURRENCIA)];
 
+// Se agrega en todas las consultas que devuelven pagos, para poder mostrar
+// quien lo creo (nombre legible, no solo el usuario tecnico).
+const SELECT_PAGOS = `
+  SELECT pagos.*, usuarios.nombre AS creado_por_nombre
+  FROM pagos
+  LEFT JOIN usuarios ON usuarios.usuario = pagos.creado_por
+`;
+
 function hoy() {
   return dayjs().format("YYYY-MM-DD");
 }
@@ -33,7 +41,11 @@ function esVisibilidadRestringida(usuarioActual) {
   return !!usuarioActual && usuarioActual.rol !== "jefe";
 }
 
-async function getAll(empresa, usuarioActual) {
+function puedeFiltrarPorUsuario(usuarioActual) {
+  return !usuarioActual || usuarioActual.rol === "jefe";
+}
+
+async function getAll(empresa, usuarioActual, usuarioFiltro) {
   const condiciones = [];
   const params = [];
   if (empresa) {
@@ -43,14 +55,17 @@ async function getAll(empresa, usuarioActual) {
   if (esVisibilidadRestringida(usuarioActual)) {
     params.push(usuarioActual.usuario);
     condiciones.push(`creado_por = $${params.length}`);
+  } else if (usuarioFiltro && puedeFiltrarPorUsuario(usuarioActual)) {
+    params.push(usuarioFiltro);
+    condiciones.push(`creado_por = $${params.length}`);
   }
   const where = condiciones.length ? `WHERE ${condiciones.join(" AND ")}` : "";
-  const { rows } = await pool.query(`SELECT * FROM pagos ${where} ORDER BY fecha_vencimiento ASC`, params);
+  const { rows } = await pool.query(`${SELECT_PAGOS} ${where} ORDER BY fecha_vencimiento ASC`, params);
   return rows.map(normalizarFila);
 }
 
 async function getById(id, usuarioActual) {
-  const { rows } = await pool.query("SELECT * FROM pagos WHERE id = $1", [id]);
+  const { rows } = await pool.query(`${SELECT_PAGOS} WHERE pagos.id = $1`, [id]);
   const pago = normalizarFila(rows[0]);
   if (!pago) return null;
   if (esVisibilidadRestringida(usuarioActual) && pago.creado_por !== usuarioActual.usuario) return null;
@@ -61,10 +76,11 @@ async function getById(id, usuarioActual) {
  * Consulta generica de pagos pendientes, con filtro de rango de fechas opcional
  * (hoy/semana/mes/vencidos/pendientes), filtro opcional por empresa, y
  * visibilidad restringida al dueno salvo que usuarioActual sea "jefe" (o no
- * se pase, para llamadas internas del sistema).
+ * se pase, para llamadas internas del sistema). usuarioFiltro (solo aplica
+ * si quien pregunta es jefe) permite ver los pagos de UN usuario especifico.
  */
-async function getPagos({ filtro, empresa, usuarioActual } = {}) {
-  const condiciones = ["estado = 'pendiente'"];
+async function getPagos({ filtro, empresa, usuarioActual, usuarioFiltro } = {}) {
+  const condiciones = ["pagos.estado = 'pendiente'"];
   const params = [];
 
   if (filtro === "hoy") {
@@ -90,20 +106,28 @@ async function getPagos({ filtro, empresa, usuarioActual } = {}) {
   if (esVisibilidadRestringida(usuarioActual)) {
     params.push(usuarioActual.usuario);
     condiciones.push(`creado_por = $${params.length}`);
+  } else if (usuarioFiltro && puedeFiltrarPorUsuario(usuarioActual)) {
+    params.push(usuarioFiltro);
+    condiciones.push(`creado_por = $${params.length}`);
   }
 
   const { rows } = await pool.query(
-    `SELECT * FROM pagos WHERE ${condiciones.join(" AND ")} ORDER BY fecha_vencimiento ASC`,
+    `${SELECT_PAGOS} WHERE ${condiciones.join(" AND ")} ORDER BY fecha_vencimiento ASC`,
     params
   );
   return rows.map(normalizarFila);
 }
 
-const getPendientes = (empresa, usuarioActual) => getPagos({ filtro: "pendientes", empresa, usuarioActual });
-const getDeHoy = (empresa, usuarioActual) => getPagos({ filtro: "hoy", empresa, usuarioActual });
-const getDeLaSemana = (empresa, usuarioActual) => getPagos({ filtro: "semana", empresa, usuarioActual });
-const getDelMes = (empresa, usuarioActual) => getPagos({ filtro: "mes", empresa, usuarioActual });
-const getVencidos = (empresa, usuarioActual) => getPagos({ filtro: "vencidos", empresa, usuarioActual });
+const getPendientes = (empresa, usuarioActual, usuarioFiltro) =>
+  getPagos({ filtro: "pendientes", empresa, usuarioActual, usuarioFiltro });
+const getDeHoy = (empresa, usuarioActual, usuarioFiltro) =>
+  getPagos({ filtro: "hoy", empresa, usuarioActual, usuarioFiltro });
+const getDeLaSemana = (empresa, usuarioActual, usuarioFiltro) =>
+  getPagos({ filtro: "semana", empresa, usuarioActual, usuarioFiltro });
+const getDelMes = (empresa, usuarioActual, usuarioFiltro) =>
+  getPagos({ filtro: "mes", empresa, usuarioActual, usuarioFiltro });
+const getVencidos = (empresa, usuarioActual, usuarioFiltro) =>
+  getPagos({ filtro: "vencidos", empresa, usuarioActual, usuarioFiltro });
 
 async function getEmpresas() {
   const { rows } = await pool.query(
@@ -128,16 +152,16 @@ async function create(data, usuarioActual) {
       usuarioActual?.usuario ?? null,
     ]
   );
-  return normalizarFila(rows[0]);
+  return getById(rows[0].id);
 }
 
 async function update(id, data, usuarioActual) {
   const actual = await getById(id, usuarioActual);
   if (!actual) return null;
-  const { rows } = await pool.query(
+  await pool.query(
     `UPDATE pagos SET empresa=$1, nombre=$2, categoria=$3, monto=$4, fecha_vencimiento=$5,
        recurrencia=$6, dias_aviso=$7, notas=$8, estado=$9
-     WHERE id=$10 RETURNING *`,
+     WHERE id=$10`,
     [
       data.empresa ?? actual.empresa,
       data.nombre ?? actual.nombre,
@@ -151,7 +175,7 @@ async function update(id, data, usuarioActual) {
       id,
     ]
   );
-  return normalizarFila(rows[0]);
+  return getById(id);
 }
 
 async function remove(id, usuarioActual) {
@@ -198,7 +222,10 @@ async function getHistorial(usuarioActual, limit = 100) {
   const where = condiciones.length ? `WHERE ${condiciones.join(" AND ")}` : "";
   params.push(limit);
   const { rows } = await pool.query(
-    `SELECT * FROM historial_pagos ${where} ORDER BY fecha_pago DESC LIMIT $${params.length}`,
+    `SELECT historial_pagos.*, usuarios.nombre AS creado_por_nombre
+     FROM historial_pagos
+     LEFT JOIN usuarios ON usuarios.usuario = historial_pagos.creado_por
+     ${where} ORDER BY fecha_pago DESC LIMIT $${params.length}`,
     params
   );
   return rows.map((r) => ({ ...r, monto: Number(r.monto) }));

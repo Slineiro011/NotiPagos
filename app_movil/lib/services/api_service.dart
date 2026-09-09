@@ -109,12 +109,23 @@ class ApiService {
 
   // ---------- Pagos ----------
 
-  static Future<List<Pago>> getPagos({String filtro = 'pendientes', String? empresa}) async {
-    final query = {'filtro': filtro, if (empresa != null && empresa.isNotEmpty) 'empresa': empresa};
+  static Future<List<Pago>> getPagos({String filtro = 'pendientes', String? empresa, String? usuario}) async {
+    final query = {
+      'filtro': filtro,
+      if (empresa != null && empresa.isNotEmpty) 'empresa': empresa,
+      if (usuario != null && usuario.isNotEmpty) 'usuario': usuario,
+    };
     final res = await http.get(await _uri('/pagos', query), headers: await _headers());
     _verificar(res);
     final lista = jsonDecode(utf8.decode(res.bodyBytes)) as List;
     return lista.map((e) => Pago.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  static Future<List<Map<String, dynamic>>> getUsuarios() async {
+    final res = await http.get(await _uri('/usuarios'), headers: await _headers());
+    _verificar(res);
+    final lista = jsonDecode(utf8.decode(res.bodyBytes)) as List;
+    return lista.cast<Map<String, dynamic>>();
   }
 
   static Future<List<String>> getEmpresas() async {
