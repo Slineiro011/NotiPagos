@@ -3,6 +3,8 @@ const dayjs = require("dayjs");
 
 const paymentsService = require("./services/paymentsService");
 const settingsService = require("./services/settingsService");
+const usuariosService = require("./services/usuariosService");
+const dispositivosService = require("./services/dispositivosService");
 const whatsapp = require("./whatsapp");
 const push = require("./push");
 
@@ -21,23 +23,32 @@ async function ejecutarRevisionDiaria() {
 
   if (!aAvisar.length) return { avisados: 0 };
 
-  const numeros = await settingsService.getNumerosWhatsapp();
+  const numerosGlobales = await settingsService.getNumerosWhatsapp();
 
   let avisados = 0;
   for (const pago of aAvisar) {
     let algunoOk = false;
 
+    // El recordatorio solo debe llegarle a quien creo el pago (no a todo el
+    // mundo). Los pagos antiguos sin dueño (antes de que existiera el login
+    // multiusuario) siguen usando la configuracion global como respaldo.
+    const creador = pago.creado_por ? await usuariosService.getByUsuario(pago.creado_por) : null;
+    const numerosDestino = creador?.telefono ? [creador.telefono] : numerosGlobales;
+    const tokensDestino = creador
+      ? await dispositivosService.getTokensDeUsuario(creador.usuario)
+      : await dispositivosService.getTokens();
+
     // Canal 1: WhatsApp. Recordatorio automatico proactivo, usa plantilla aprobada
     // (funciona fuera de la ventana de 24h).
-    if (numeros.length) {
+    if (numerosDestino.length) {
       const textoVariable = whatsapp.formatPagoLinea(pago);
-      const resultadosWhatsapp = await whatsapp.enviarATodos(numeros, textoVariable, { plantilla: true });
+      const resultadosWhatsapp = await whatsapp.enviarATodos(numerosDestino, textoVariable, { plantilla: true });
       if (resultadosWhatsapp.some((r) => r.ok)) algunoOk = true;
       else console.error(`No se pudo enviar el recordatorio de WhatsApp del pago #${pago.id}:`, resultadosWhatsapp);
     }
 
     // Canal 2: notificacion push a la app movil (independiente de WhatsApp).
-    const resultadoPush = await push.enviarATodos({
+    const resultadoPush = await push.enviarATokens(tokensDestino, {
       titulo: "🔔 Recordatorio de pago",
       cuerpo: whatsapp.formatPagoLinea(pago),
       datos: { pagoId: String(pago.id) },

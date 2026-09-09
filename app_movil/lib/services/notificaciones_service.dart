@@ -69,6 +69,8 @@ class NotificacionesService {
     mensajeria.onTokenRefresh.listen((_) => _registrarToken());
   }
 
+  static Future<void> registrarTokenActual() => _registrarToken();
+
   static Future<void> _registrarToken() async {
     try {
       final token = await FirebaseMessaging.instance.getToken();

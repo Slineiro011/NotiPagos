@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'screens/pagos_screen.dart';
 import 'screens/historial_screen.dart';
 import 'screens/configuracion_screen.dart';
+import 'screens/usuarios_screen.dart';
 import 'screens/login_screen.dart';
 import 'services/api_service.dart';
-import 'services/notificaciones_service.dart';
+import 'services/notificaciones_service.dart' show NotificacionesService;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -75,7 +76,12 @@ class _AuthGateState extends State<AuthGate> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     if (!_autenticado) {
-      return LoginScreen(onLoginExitoso: () => setState(() => _autenticado = true));
+      return LoginScreen(
+        onLoginExitoso: () {
+          setState(() => _autenticado = true);
+          NotificacionesService.registrarTokenActual();
+        },
+      );
     }
     return HomeShell(onSalir: _salir);
   }
@@ -92,19 +98,44 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _indice = 0;
+  bool _esJefe = false;
+  bool _cargandoRol = true;
 
-  static const _titulos = ['💳 Pagos', 'Historial', 'WhatsApp / Configuración'];
+  @override
+  void initState() {
+    super.initState();
+    ApiService.esJefe().then((esJefe) {
+      if (mounted) setState(() {
+        _esJefe = esJefe;
+        _cargandoRol = false;
+      });
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_cargandoRol) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    final titulos = ['💳 Pagos', 'Historial', if (_esJefe) 'Usuarios', 'WhatsApp / Configuración'];
     final pantallas = [
       const PagosScreen(),
       const HistorialScreen(),
+      if (_esJefe) const UsuariosScreen(),
       ConfiguracionScreen(onSalir: widget.onSalir),
     ];
+    final destinos = [
+      const NavigationDestination(icon: Icon(Icons.payments_outlined), selectedIcon: Icon(Icons.payments), label: 'Pagos'),
+      const NavigationDestination(icon: Icon(Icons.history_outlined), selectedIcon: Icon(Icons.history), label: 'Historial'),
+      if (_esJefe)
+        const NavigationDestination(icon: Icon(Icons.people_outline), selectedIcon: Icon(Icons.people), label: 'Usuarios'),
+      const NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: 'Config'),
+    ];
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(_titulos[_indice]),
+        title: Text(titulos[_indice]),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
@@ -117,11 +148,7 @@ class _HomeShellState extends State<HomeShell> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _indice,
         onDestinationSelected: (i) => setState(() => _indice = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.payments_outlined), selectedIcon: Icon(Icons.payments), label: 'Pagos'),
-          NavigationDestination(icon: Icon(Icons.history_outlined), selectedIcon: Icon(Icons.history), label: 'Historial'),
-          NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: 'Config'),
-        ],
+        destinations: destinos,
       ),
     );
   }

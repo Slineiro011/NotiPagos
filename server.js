@@ -25,7 +25,7 @@ app.use("/api/configuracion", requireAuth, configuracionRouter);
 app.use("/api/usuarios", requireAuth, requireJefe, usuariosRouter);
 app.use("/webhook/whatsapp", webhookRouter);
 app.use("/api/cron", cronRouter);
-app.use("/api/dispositivos", dispositivosRouter);
+app.use("/api/dispositivos", requireAuth, dispositivosRouter);
 
 // Manejador de errores: cualquier ruta async que llame next(err) cae aqui.
 app.use((err, req, res, next) => {

@@ -72,6 +72,7 @@ async function migrar() {
       plataforma TEXT NOT NULL DEFAULT 'android',
       creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+    ALTER TABLE dispositivos ADD COLUMN IF NOT EXISTS usuario TEXT;
 
     CREATE TABLE IF NOT EXISTS usuarios (
       id SERIAL PRIMARY KEY,

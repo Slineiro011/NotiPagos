@@ -34,10 +34,14 @@ function obtenerApp() {
 
 /** Envia una notificacion push a todos los dispositivos registrados. Nunca lanza. */
 async function enviarATodos({ titulo, cuerpo, datos = {} }) {
+  const tokens = await dispositivosService.getTokens();
+  return enviarATokens(tokens, { titulo, cuerpo, datos });
+}
+
+/** Envia una notificacion push solo a los tokens indicados. Nunca lanza. */
+async function enviarATokens(tokens, { titulo, cuerpo, datos = {} }) {
   const app = obtenerApp();
   if (!app) return { enviados: 0, motivo: "sin_credencial" };
-
-  const tokens = await dispositivosService.getTokens();
   if (!tokens.length) return { enviados: 0, motivo: "sin_dispositivos" };
 
   const mensaje = {
@@ -71,4 +75,4 @@ async function enviarATodos({ titulo, cuerpo, datos = {} }) {
   }
 }
 
-module.exports = { enviarATodos };
+module.exports = { enviarATodos, enviarATokens };

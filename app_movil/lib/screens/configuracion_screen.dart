@@ -180,7 +180,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
           const SizedBox(height: 24),
           Center(
             child: Text(
-              'NotiPagos · Desarrollado por SlinMask Labs',
+              'NotiPagos v1.5.0+8 · Desarrollado por SlinMask Labs',
               style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
             ),
           ),

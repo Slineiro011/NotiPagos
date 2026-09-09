@@ -1,10 +1,10 @@
 const { pool } = require("../db");
 
-async function registrar(token, plataforma = "android") {
+async function registrar(token, plataforma = "android", usuario = null) {
   await pool.query(
-    `INSERT INTO dispositivos (token, plataforma) VALUES ($1, $2)
-     ON CONFLICT (token) DO UPDATE SET plataforma = excluded.plataforma`,
-    [token, plataforma]
+    `INSERT INTO dispositivos (token, plataforma, usuario) VALUES ($1, $2, $3)
+     ON CONFLICT (token) DO UPDATE SET plataforma = excluded.plataforma, usuario = excluded.usuario`,
+    [token, plataforma, usuario]
   );
 }
 
@@ -17,4 +17,9 @@ async function getTokens() {
   return rows.map((r) => r.token);
 }
 
-module.exports = { registrar, eliminar, getTokens };
+async function getTokensDeUsuario(usuario) {
+  const { rows } = await pool.query("SELECT token FROM dispositivos WHERE usuario = $1", [usuario]);
+  return rows.map((r) => r.token);
+}
+
+module.exports = { registrar, eliminar, getTokens, getTokensDeUsuario };

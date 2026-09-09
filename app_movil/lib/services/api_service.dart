@@ -9,6 +9,7 @@ const String _clavePrefUrl = 'api_base_url';
 const String _clavePrefToken = 'auth_token';
 const String _clavePrefNombre = 'auth_nombre';
 const String _clavePrefRol = 'auth_rol';
+const String _clavePrefUsuario = 'auth_usuario';
 
 /// Se llama cuando el servidor responde 401 (sesion invalida/expirada), para
 /// que la app pueda volver a mostrar la pantalla de login.
@@ -53,6 +54,7 @@ class ApiService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_clavePrefNombre);
     await prefs.remove(_clavePrefRol);
+    await prefs.remove(_clavePrefUsuario);
   }
 
   static Future<void> login(String usuario, String password) async {
@@ -69,6 +71,7 @@ class ApiService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_clavePrefNombre, (data['nombre'] ?? data['usuario'] ?? '') as String);
     await prefs.setString(_clavePrefRol, (data['rol'] ?? 'usuario') as String);
+    await prefs.setString(_clavePrefUsuario, (data['usuario'] ?? usuario) as String);
   }
 
   static Future<String> getNombre() async {
@@ -79,6 +82,11 @@ class ApiService {
   static Future<String> getRol() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_clavePrefRol) ?? 'usuario';
+  }
+
+  static Future<String> getUsuarioActual() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_clavePrefUsuario) ?? '';
   }
 
   static Future<bool> esJefe() async => (await getRol()) == 'jefe';
@@ -126,6 +134,55 @@ class ApiService {
     _verificar(res);
     final lista = jsonDecode(utf8.decode(res.bodyBytes)) as List;
     return lista.cast<Map<String, dynamic>>();
+  }
+
+  static Future<void> crearUsuario({
+    required String usuario,
+    required String password,
+    required String nombre,
+    required String rol,
+    String? telefono,
+  }) async {
+    final res = await http.post(
+      await _uri('/usuarios'),
+      headers: await _headers(),
+      body: jsonEncode({'usuario': usuario, 'password': password, 'nombre': nombre, 'rol': rol, 'telefono': telefono}),
+    );
+    if (res.statusCode == 401) return _verificar(res);
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      throw Exception(data['error'] ?? 'No se pudo crear el usuario');
+    }
+  }
+
+  static Future<void> actualizarUsuario(
+    String usuarioOriginal, {
+    required String nombre,
+    required String rol,
+    String? telefono,
+    String? password,
+  }) async {
+    final cambios = <String, dynamic>{'nombre': nombre, 'rol': rol, 'telefono': telefono};
+    if (password != null && password.isNotEmpty) cambios['password'] = password;
+    final res = await http.put(
+      await _uri('/usuarios/${Uri.encodeComponent(usuarioOriginal)}'),
+      headers: await _headers(),
+      body: jsonEncode(cambios),
+    );
+    if (res.statusCode == 401) return _verificar(res);
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      throw Exception(data['error'] ?? 'No se pudo actualizar el usuario');
+    }
+  }
+
+  static Future<void> eliminarUsuario(String usuario) async {
+    final res = await http.delete(await _uri('/usuarios/${Uri.encodeComponent(usuario)}'), headers: await _headers());
+    if (res.statusCode == 401) return _verificar(res);
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      throw Exception(data['error'] ?? 'No se pudo eliminar el usuario');
+    }
   }
 
   static Future<List<String>> getEmpresas() async {
