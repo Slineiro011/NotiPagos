@@ -2,6 +2,7 @@ const dayjs = require("dayjs");
 const paymentsService = require("./services/paymentsService");
 const settingsService = require("./services/settingsService");
 const borradoresService = require("./services/borradoresService");
+const usuariosService = require("./services/usuariosService");
 const whatsapp = require("./whatsapp");
 const gemini = require("./gemini");
 
@@ -47,9 +48,9 @@ const FILTROS = {
   pendientes: { descripcion: "todos los pagos pendientes", titulo: "📋 Todos los pagos pendientes:", obtener: paymentsService.getPendientes },
 };
 
-async function consultar(numero, filtro, textoOriginal, empresa) {
+async function consultar(numero, filtro, textoOriginal, empresa, usuarioActual) {
   const entrada = FILTROS[filtro] || FILTROS.pendientes;
-  const pagos = await entrada.obtener(empresa || undefined);
+  const pagos = await entrada.obtener(empresa || undefined, usuarioActual);
   const datos = pagos.map(datosParaGemini);
   const contexto = empresa ? `${entrada.descripcion} de la empresa "${empresa}"` : entrada.descripcion;
   const titulo = empresa ? `${entrada.titulo} (${empresa})` : entrada.titulo;
@@ -62,10 +63,10 @@ async function consultar(numero, filtro, textoOriginal, empresa) {
   );
 }
 
-async function marcarPagado(numero, id) {
-  const pago = await paymentsService.getById(id);
+async function marcarPagado(numero, id, usuarioActual) {
+  const pago = await paymentsService.getById(id, usuarioActual);
   if (!pago) return responder(numero, `No encontré ningún pago con el número #${id}.`);
-  await paymentsService.marcarPagado(id);
+  await paymentsService.marcarPagado(id, usuarioActual);
   return responderConRedaccion(
     numero,
     "La contadora acaba de marcar este pago como realizado. Confirmaselo de forma breve y natural.",
@@ -74,10 +75,10 @@ async function marcarPagado(numero, id) {
   );
 }
 
-async function eliminarPago(numero, id) {
-  const pago = await paymentsService.getById(id);
+async function eliminarPago(numero, id, usuarioActual) {
+  const pago = await paymentsService.getById(id, usuarioActual);
   if (!pago) return responder(numero, `No encontré ningún pago con el número #${id}.`);
-  await paymentsService.remove(id);
+  await paymentsService.remove(id, usuarioActual);
   return responder(numero, `🗑️ Eliminé el pago: *${pago.nombre}*.`);
 }
 
@@ -110,17 +111,20 @@ function primerCampoFaltante(datos) {
   return CAMPOS_REQUERIDOS.find((c) => !datos[c.campo] && datos[c.campo] !== 0);
 }
 
-async function crearPagoFinal(numero, datos) {
-  const pago = await paymentsService.create({
-    empresa: datos.empresa,
-    nombre: datos.nombre,
-    categoria: datos.categoria || "Otro",
-    monto: datos.monto,
-    fecha_vencimiento: datos.fecha_vencimiento,
-    recurrencia: paymentsService.RECURRENCIAS.includes(datos.recurrencia) ? datos.recurrencia : "ninguna",
-    dias_aviso: datos.dias_aviso,
-    notas: "",
-  });
+async function crearPagoFinal(numero, datos, usuarioActual) {
+  const pago = await paymentsService.create(
+    {
+      empresa: datos.empresa,
+      nombre: datos.nombre,
+      categoria: datos.categoria || "Otro",
+      monto: datos.monto,
+      fecha_vencimiento: datos.fecha_vencimiento,
+      recurrencia: paymentsService.RECURRENCIAS.includes(datos.recurrencia) ? datos.recurrencia : "ninguna",
+      dias_aviso: datos.dias_aviso,
+      notas: "",
+    },
+    usuarioActual
+  );
 
   return responderConRedaccion(
     numero,
@@ -131,18 +135,18 @@ async function crearPagoFinal(numero, datos) {
 }
 
 /** Punto de entrada cuando Gemini detecta la intencion de crear un pago (primer mensaje). */
-async function crearOPreguntar(numero, datosParciales) {
+async function crearOPreguntar(numero, datosParciales, usuarioActual) {
   const datos = normalizarDatosPago(datosParciales);
   const faltante = primerCampoFaltante(datos);
 
-  if (!faltante) return crearPagoFinal(numero, datos);
+  if (!faltante) return crearPagoFinal(numero, datos, usuarioActual);
 
   await borradoresService.guardar(numero, datos);
   return responder(numero, faltante.pregunta);
 }
 
 /** El numero tiene un pago a medio armar: esta respuesta completa el campo que faltaba. */
-async function continuarBorrador(numero, borrador, texto) {
+async function continuarBorrador(numero, borrador, texto, usuarioActual) {
   if (/^(cancela|cancelar|olv[ií]dalo|nada|ya no)$/i.test(texto.trim())) {
     await borradoresService.borrar(numero);
     return responder(numero, "Listo, cancelé el pago que estábamos armando. ¿Algo más?");
@@ -151,7 +155,7 @@ async function continuarBorrador(numero, borrador, texto) {
   const campoActual = primerCampoFaltante(borrador);
   if (!campoActual) {
     await borradoresService.borrar(numero);
-    return crearPagoFinal(numero, borrador);
+    return crearPagoFinal(numero, borrador, usuarioActual);
   }
 
   let resultado;
@@ -179,7 +183,7 @@ async function continuarBorrador(numero, borrador, texto) {
   }
 
   await borradoresService.borrar(numero);
-  return crearPagoFinal(numero, actualizado);
+  return crearPagoFinal(numero, actualizado, usuarioActual);
 }
 
 async function activarRecordatorios(numero) {
@@ -204,27 +208,39 @@ async function configurarHora(numero, hora) {
   return responder(numero, `⏰ Listo, los recordatorios diarios ahora salen a las ${hora}.`);
 }
 
+const SOLO_JEFE = "🔒 Solo el jefe puede cambiar esa configuración. Puedes seguir preguntándome por tus pagos cuando quieras.";
+
 async function manejarMensaje(numero, textoOriginal) {
   const texto = (textoOriginal || "").trim();
   if (!texto) return;
+
+  const usuarioActual = await usuariosService.getByTelefono(numero);
+  if (!usuarioActual) {
+    return responder(
+      numero,
+      "Tu número todavía no está registrado para usar este asistente. Pídele a la persona encargada que te dé acceso."
+    );
+  }
+  const esJefe = usuarioActual.rol === "jefe";
+
   const textoLower = texto.toLowerCase();
 
   const matchPagado = textoLower.match(/^pagad[oa]?\s+(\d+)$/) || textoLower.match(/^pagu[ée]\s+(\d+)$/);
-  if (matchPagado) return marcarPagado(numero, Number(matchPagado[1]));
+  if (matchPagado) return marcarPagado(numero, Number(matchPagado[1]), usuarioActual);
 
   const matchEliminar = textoLower.match(/^(?:elimina|borra|cancela)r?\s+(?:el\s+)?pago\s+(\d+)$/);
-  if (matchEliminar) return eliminarPago(numero, Number(matchEliminar[1]));
+  if (matchEliminar) return eliminarPago(numero, Number(matchEliminar[1]), usuarioActual);
 
-  if (/^hoy$/.test(textoLower)) return consultar(numero, "hoy", texto);
-  if (/^semana$/.test(textoLower)) return consultar(numero, "semana", texto);
-  if (/^mes$/.test(textoLower)) return consultar(numero, "mes", texto);
-  if (/^(vencidos|atrasados)$/.test(textoLower)) return consultar(numero, "vencidos", texto);
-  if (/^(pendientes|pagos)$/.test(textoLower)) return consultar(numero, "pendientes", texto);
+  if (/^hoy$/.test(textoLower)) return consultar(numero, "hoy", texto, null, usuarioActual);
+  if (/^semana$/.test(textoLower)) return consultar(numero, "semana", texto, null, usuarioActual);
+  if (/^mes$/.test(textoLower)) return consultar(numero, "mes", texto, null, usuarioActual);
+  if (/^(vencidos|atrasados)$/.test(textoLower)) return consultar(numero, "vencidos", texto, null, usuarioActual);
+  if (/^(pendientes|pagos)$/.test(textoLower)) return consultar(numero, "pendientes", texto, null, usuarioActual);
   if (/^(hola|ayuda|menu|menú)$/.test(textoLower)) return responder(numero, whatsapp.AYUDA);
 
   // Si hay un pago a medio armar para este numero, esta respuesta completa el siguiente dato pendiente.
   const borrador = await borradoresService.get(numero);
-  if (borrador) return continuarBorrador(numero, borrador, texto);
+  if (borrador) return continuarBorrador(numero, borrador, texto, usuarioActual);
 
   let intencion;
   try {
@@ -237,18 +253,21 @@ async function manejarMensaje(numero, textoOriginal) {
 
   switch (intencion.accion) {
     case "crear_pago":
-      return crearOPreguntar(numero, intencion);
+      return crearOPreguntar(numero, intencion, usuarioActual);
     case "consultar":
-      return consultar(numero, intencion.filtro, texto, intencion.empresa);
+      return consultar(numero, intencion.filtro, texto, intencion.empresa, usuarioActual);
     case "marcar_pagado":
-      return marcarPagado(numero, intencion.id);
+      return marcarPagado(numero, intencion.id, usuarioActual);
     case "eliminar_pago":
-      return eliminarPago(numero, intencion.id);
+      return eliminarPago(numero, intencion.id, usuarioActual);
     case "activar_recordatorios":
+      if (!esJefe) return responder(numero, SOLO_JEFE);
       return activarRecordatorios(numero);
     case "desactivar_recordatorios":
+      if (!esJefe) return responder(numero, SOLO_JEFE);
       return desactivarRecordatorios(numero);
     case "configurar_hora":
+      if (!esJefe) return responder(numero, SOLO_JEFE);
       return configurarHora(numero, intencion.hora);
     case "fuera_de_tema":
       return responder(numero, "Lo siento, no puedo ayudarte con eso 🙏 Solo puedo ayudarte con los pagos de la empresa y sus recordatorios. Escribe *ayuda* si quieres ver qué puedo hacer.");

@@ -7,6 +7,8 @@ import '../models/pago.dart';
 const String _urlPorDefecto = 'https://notipagos.onrender.com/api';
 const String _clavePrefUrl = 'api_base_url';
 const String _clavePrefToken = 'auth_token';
+const String _clavePrefNombre = 'auth_nombre';
+const String _clavePrefRol = 'auth_rol';
 
 /// Se llama cuando el servidor responde 401 (sesion invalida/expirada), para
 /// que la app pueda volver a mostrar la pantalla de login.
@@ -46,7 +48,12 @@ class ApiService {
     _cacheToken = token;
   }
 
-  static Future<void> cerrarSesion() => _setToken(null);
+  static Future<void> cerrarSesion() async {
+    await _setToken(null);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_clavePrefNombre);
+    await prefs.remove(_clavePrefRol);
+  }
 
   static Future<void> login(String usuario, String password) async {
     final res = await http.post(
@@ -59,7 +66,22 @@ class ApiService {
       throw Exception(data['error'] ?? 'No se pudo iniciar sesión');
     }
     await _setToken(data['token'] as String);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_clavePrefNombre, (data['nombre'] ?? data['usuario'] ?? '') as String);
+    await prefs.setString(_clavePrefRol, (data['rol'] ?? 'usuario') as String);
   }
+
+  static Future<String> getNombre() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_clavePrefNombre) ?? '';
+  }
+
+  static Future<String> getRol() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_clavePrefRol) ?? 'usuario';
+  }
+
+  static Future<bool> esJefe() async => (await getRol()) == 'jefe';
 
   static Future<Uri> _uri(String path, [Map<String, String>? query]) async {
     final base = await getBaseUrl();

@@ -85,6 +85,9 @@ cp .env.example .env
 | `WHATSAPP_TEMPLATE_NAME` | Nombre de la plantilla aprobada (`recordatorio_pagos`) |
 | `GEMINI_API_KEY` | API key de Google AI Studio |
 | `CRON_SECRET` | Lo inventas tú, protege el endpoint que dispara los recordatorios (ver paso 6) |
+| `JWT_SECRET` | Lo inventas tú (una cadena larga y aleatoria), firma las sesiones de login |
+| `TZ` | `America/Bogota` — para que la hora y fecha del servidor coincidan con la zona horaria real |
+| `FIREBASE_SERVICE_ACCOUNT_PATH` | Ruta al JSON de la cuenta de servicio de Firebase (ver sección de notificaciones push abajo) |
 
 ## 5. Instalar y correr localmente
 
@@ -118,6 +121,35 @@ Si nadie lo visita, Render apaga el servicio tras ~15 minutos y lo reinicia en l
 3. Prográmalo a la hora en que quieres que salgan los recordatorios (esto reemplaza, para efectos prácticos, el campo "hora del recordatorio" de la app cuando corres en Render — ese campo interno solo aplica si el servicio nunca se duerme).
 
 Ese endpoint es seguro de llamar varias veces al día: cada pago solo se avisa una vez por día aunque se dispare varias veces.
+
+## 7. Crear usuarios (login) y asignar roles
+
+La app web y la app móvil piden usuario y contraseña. No hay registro público — las cuentas se crean a mano, desde la terminal ("Shell" en Render) con:
+
+```bash
+node scripts/crear-usuario.js <usuario> <password> [nombre] [rol] [telefono]
+```
+
+- **rol**: `usuario` (por defecto) o `jefe`.
+- **telefono**: número de WhatsApp (con código de país, sin "+") para que esa misma persona también pueda usar el bot. Si no lo pones, esa persona solo podrá entrar por la web/app, no por WhatsApp.
+
+Ejemplos:
+```bash
+node scripts/crear-usuario.js sebastian ClaveSegura123 Sebastian jefe 573001112233
+node scripts/crear-usuario.js contadora OtraClave456 "Nombre contadora" usuario 573004445566
+```
+
+Para cambiar la contraseña de alguien, corre el mismo comando de nuevo con la clave nueva (actualiza en vez de duplicar). Para borrar una cuenta:
+```bash
+node scripts/eliminar-usuario.js <usuario>
+```
+
+### Cómo funcionan los permisos
+
+- Cada pago queda asociado a quien lo creó (usuario que lo agendó por la web, la app o el bot de WhatsApp).
+- Un usuario con rol **`usuario`** solo ve y administra los pagos que **él mismo** creó — en la web, en la app móvil y por WhatsApp.
+- Un usuario con rol **`jefe`** ve y administra los pagos de **todos**, y es el único que puede cambiar la configuración global (números que reciben los recordatorios automáticos y la hora), tanto desde la web como pidiéndoselo al bot.
+- Si un número de WhatsApp no está vinculado a ninguna cuenta (campo `telefono` vacío), el bot le responde que no tiene acceso.
 
 ## Uso de la app web
 

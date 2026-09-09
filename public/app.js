@@ -1,5 +1,6 @@
 const API = "/api";
 const CLAVE_TOKEN = "notipagos_token";
+const CLAVE_SESION = "notipagos_sesion";
 
 // ---------- Autenticación ----------
 function getToken() {
@@ -9,6 +10,23 @@ function getToken() {
 function setToken(token) {
   if (token) localStorage.setItem(CLAVE_TOKEN, token);
   else localStorage.removeItem(CLAVE_TOKEN);
+}
+
+function getSesion() {
+  try {
+    return JSON.parse(localStorage.getItem(CLAVE_SESION) || "null");
+  } catch {
+    return null;
+  }
+}
+
+function setSesion(sesion) {
+  if (sesion) localStorage.setItem(CLAVE_SESION, JSON.stringify(sesion));
+  else localStorage.removeItem(CLAVE_SESION);
+}
+
+function esJefe() {
+  return getSesion()?.rol === "jefe";
 }
 
 async function apiFetch(path, options = {}) {
@@ -26,6 +44,7 @@ async function apiFetch(path, options = {}) {
 
 function mostrarLogin(mensaje) {
   setToken(null);
+  setSesion(null);
   document.getElementById("app-contenido").hidden = true;
   document.getElementById("pantalla-login").style.display = "flex";
   document.getElementById("login-error").textContent = mensaje || "";
@@ -34,6 +53,13 @@ function mostrarLogin(mensaje) {
 function mostrarApp() {
   document.getElementById("pantalla-login").style.display = "none";
   document.getElementById("app-contenido").hidden = false;
+  const sesion = getSesion();
+  const etiqueta = document.getElementById("sesion-usuario");
+  if (etiqueta && sesion) {
+    etiqueta.textContent = `${sesion.nombre}${sesion.rol === "jefe" ? " (jefe)" : ""}`;
+  }
+  document.querySelectorAll(".solo-jefe").forEach((el) => (el.style.display = esJefe() ? "" : "none"));
+  document.querySelectorAll(".solo-usuario").forEach((el) => (el.style.display = esJefe() ? "none" : ""));
   cargarPagos();
   cargarEmpresas();
 }
@@ -57,6 +83,7 @@ document.getElementById("form-login").addEventListener("submit", async (e) => {
       return;
     }
     setToken(data.token);
+    setSesion({ usuario: data.usuario, nombre: data.nombre, rol: data.rol });
     mostrarApp();
   } catch {
     errorEl.textContent = "No se pudo conectar con el servidor";

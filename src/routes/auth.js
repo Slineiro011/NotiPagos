@@ -17,7 +17,7 @@ router.post(
     if (!encontrado) return res.status(401).json({ error: "Usuario o contraseña incorrectos" });
 
     const token = generarToken(encontrado);
-    res.json({ token, nombre: encontrado.nombre, usuario: encontrado.usuario });
+    res.json({ token, nombre: encontrado.nombre, usuario: encontrado.usuario, rol: encontrado.rol });
   })
 );
 

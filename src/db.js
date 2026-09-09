@@ -29,9 +29,11 @@ async function migrar() {
       dias_aviso INTEGER NOT NULL DEFAULT 3,
       estado TEXT NOT NULL DEFAULT 'pendiente',
       notas TEXT DEFAULT '',
+      creado_por TEXT,
       creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
     );
     ALTER TABLE pagos ADD COLUMN IF NOT EXISTS empresa TEXT NOT NULL DEFAULT 'Sin empresa';
+    ALTER TABLE pagos ADD COLUMN IF NOT EXISTS creado_por TEXT;
 
     CREATE TABLE IF NOT EXISTS historial_pagos (
       id SERIAL PRIMARY KEY,
@@ -41,9 +43,11 @@ async function migrar() {
       categoria TEXT NOT NULL,
       monto NUMERIC NOT NULL,
       fecha_vencimiento DATE NOT NULL,
+      creado_por TEXT,
       fecha_pago TIMESTAMPTZ NOT NULL DEFAULT now()
     );
     ALTER TABLE historial_pagos ADD COLUMN IF NOT EXISTS empresa TEXT NOT NULL DEFAULT 'Sin empresa';
+    ALTER TABLE historial_pagos ADD COLUMN IF NOT EXISTS creado_por TEXT;
 
     CREATE TABLE IF NOT EXISTS configuracion (
       clave TEXT PRIMARY KEY,
@@ -74,8 +78,13 @@ async function migrar() {
       usuario TEXT UNIQUE NOT NULL,
       nombre TEXT NOT NULL DEFAULT '',
       password_hash TEXT NOT NULL,
+      rol TEXT NOT NULL DEFAULT 'usuario',
+      telefono TEXT,
       creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+    ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS rol TEXT NOT NULL DEFAULT 'usuario';
+    ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS telefono TEXT;
+    CREATE UNIQUE INDEX IF NOT EXISTS usuarios_telefono_idx ON usuarios (telefono) WHERE telefono IS NOT NULL;
   `);
 }
 

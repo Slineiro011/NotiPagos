@@ -16,6 +16,8 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
   TimeOfDay _hora = const TimeOfDay(hour: 8, minute: 0);
   bool _cargando = true;
   bool _guardando = false;
+  bool _esJefe = false;
+  String _nombre = '';
 
   @override
   void initState() {
@@ -32,16 +34,20 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
 
   Future<void> _cargarTodo() async {
     _urlCtrl.text = await ApiService.getBaseUrl();
-    try {
-      final config = await ApiService.getConfiguracion();
-      _numerosCtrl.text = (config['numeros_whatsapp'] ?? '').toString().split(',').where((e) => e.isNotEmpty).join('\n');
-      final horaTexto = (config['hora_recordatorio'] ?? '08:00').toString();
-      final partes = horaTexto.split(':');
-      if (partes.length == 2) {
-        _hora = TimeOfDay(hour: int.tryParse(partes[0]) ?? 8, minute: int.tryParse(partes[1]) ?? 0);
+    _nombre = await ApiService.getNombre();
+    _esJefe = await ApiService.esJefe();
+    if (_esJefe) {
+      try {
+        final config = await ApiService.getConfiguracion();
+        _numerosCtrl.text = (config['numeros_whatsapp'] ?? '').toString().split(',').where((e) => e.isNotEmpty).join('\n');
+        final horaTexto = (config['hora_recordatorio'] ?? '08:00').toString();
+        final partes = horaTexto.split(':');
+        if (partes.length == 2) {
+          _hora = TimeOfDay(hour: int.tryParse(partes[0]) ?? 8, minute: int.tryParse(partes[1]) ?? 0);
+        }
+      } catch (_) {
+        // si falla, se queda con los valores por defecto
       }
-    } catch (_) {
-      // si falla, se queda con los valores por defecto
     }
     if (mounted) setState(() => _cargando = false);
   }
@@ -91,40 +97,57 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _tarjeta(
-            titulo: 'Números que reciben notificaciones',
-            hijo: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Un número por línea. Incluye el código de país sin "+" (ej: 573001234567).',
-                  style: TextStyle(color: Colors.grey, fontSize: 12.5),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: _numerosCtrl,
-                  maxLines: 4,
-                  decoration: const InputDecoration(border: OutlineInputBorder(), hintText: '573001234567'),
-                ),
-                const SizedBox(height: 16),
-                const Text('Hora del recordatorio diario', style: TextStyle(fontWeight: FontWeight.w600)),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: _elegirHora,
-                  icon: const Icon(Icons.access_time),
-                  label: Text(_hora.format(context)),
-                ),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: _guardando ? null : _guardar,
-                  child: _guardando
-                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Guardar configuración'),
-                ),
-              ],
+          if (_nombre.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(
+                'Sesión: $_nombre${_esJefe ? " (jefe)" : ""}',
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
+          if (!_esJefe)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(
+                'Los números y la hora de los recordatorios los administra el jefe. Aquí solo ves y gestionas tus propios pagos.',
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 12.5),
+              ),
+            ),
+          if (_esJefe)
+            _tarjeta(
+              titulo: 'Números que reciben notificaciones',
+              hijo: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Un número por línea. Incluye el código de país sin "+" (ej: 573001234567).',
+                    style: TextStyle(color: Colors.grey, fontSize: 12.5),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _numerosCtrl,
+                    maxLines: 4,
+                    decoration: const InputDecoration(border: OutlineInputBorder(), hintText: '573001234567'),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Hora del recordatorio diario', style: TextStyle(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: _elegirHora,
+                    icon: const Icon(Icons.access_time),
+                    label: Text(_hora.format(context)),
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton(
+                    onPressed: _guardando ? null : _guardar,
+                    child: _guardando
+                        ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Text('Guardar configuración'),
+                  ),
+                ],
+              ),
+            ),
+          if (_esJefe) const SizedBox(height: 16),
           _tarjeta(
             titulo: 'Servidor',
             hijo: Column(

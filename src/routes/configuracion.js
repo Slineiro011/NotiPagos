@@ -1,6 +1,7 @@
 const express = require("express");
 const settingsService = require("../services/settingsService");
 const whatsapp = require("../whatsapp");
+const { requireJefe } = require("../auth");
 
 const router = express.Router();
 
@@ -15,6 +16,7 @@ router.get(
 
 router.put(
   "/",
+  requireJefe,
   wrap(async (req, res) => {
     const { numeros_whatsapp, hora_recordatorio } = req.body;
     const cambios = {};
@@ -27,6 +29,7 @@ router.put(
 
 router.post(
   "/whatsapp/prueba",
+  requireJefe,
   wrap(async (req, res) => {
     const numeros = await settingsService.getNumerosWhatsapp();
     if (!numeros.length) return res.status(400).json({ error: "No hay numeros configurados" });

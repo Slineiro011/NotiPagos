@@ -28,7 +28,8 @@
       <button class="tab-btn active" data-tab="pagos">Pagos</button>
       <button class="tab-btn" data-tab="historial">Historial</button>
       <button class="tab-btn" data-tab="config">WhatsApp / Configuración</button>
-      <button id="btn-salir" class="tab-btn" style="margin-left:auto">Salir</button>
+      <span id="sesion-usuario" style="margin-left:auto; color:var(--text-muted); font-size:0.85rem; align-self:center;"></span>
+      <button id="btn-salir" class="tab-btn">Salir</button>
     </nav>
   </header>
 
@@ -60,7 +61,8 @@
     </section>
 
     <section id="tab-config" class="tab-panel">
-      <div class="config-grid">
+      <p id="config-no-jefe" class="ayuda-texto solo-usuario" style="display:none;">Esta sección la administra el jefe. Aquí solo puedes ver y gestionar tus propios pagos, desde las pestañas "Pagos" e "Historial".</p>
+      <div class="config-grid solo-jefe">
         <div class="card">
           <h2>WhatsApp (API oficial de Meta)</h2>
           <p class="ayuda-texto">El número del bot se configura por variables de entorno en el servidor (WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID). Usa este botón para confirmar que la conexión funciona: envía un recordatorio de prueba a los números configurados a la derecha.</p>

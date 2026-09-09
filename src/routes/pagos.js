@@ -17,7 +17,7 @@ router.get(
       pendientes: paymentsService.getPendientes,
     };
     const obtener = porFiltro[filtro] || paymentsService.getAll;
-    res.json(await obtener(empresa || undefined));
+    res.json(await obtener(empresa || undefined, req.usuario));
   })
 );
 
@@ -31,14 +31,14 @@ router.get(
 router.get(
   "/historial",
   wrap(async (req, res) => {
-    res.json(await paymentsService.getHistorial());
+    res.json(await paymentsService.getHistorial(req.usuario));
   })
 );
 
 router.get(
   "/:id",
   wrap(async (req, res) => {
-    const pago = await paymentsService.getById(Number(req.params.id));
+    const pago = await paymentsService.getById(Number(req.params.id), req.usuario);
     if (!pago) return res.status(404).json({ error: "Pago no encontrado" });
     res.json(pago);
   })
@@ -51,7 +51,7 @@ router.post(
     if (!nombre || !fecha_vencimiento) {
       return res.status(400).json({ error: "nombre y fecha_vencimiento son obligatorios" });
     }
-    const pago = await paymentsService.create(req.body);
+    const pago = await paymentsService.create(req.body, req.usuario);
     res.status(201).json(pago);
   })
 );
@@ -59,7 +59,7 @@ router.post(
 router.put(
   "/:id",
   wrap(async (req, res) => {
-    const pago = await paymentsService.update(Number(req.params.id), req.body);
+    const pago = await paymentsService.update(Number(req.params.id), req.body, req.usuario);
     if (!pago) return res.status(404).json({ error: "Pago no encontrado" });
     res.json(pago);
   })
@@ -68,7 +68,7 @@ router.put(
 router.post(
   "/:id/pagado",
   wrap(async (req, res) => {
-    const pago = await paymentsService.marcarPagado(Number(req.params.id));
+    const pago = await paymentsService.marcarPagado(Number(req.params.id), req.usuario);
     if (!pago) return res.status(404).json({ error: "Pago no encontrado" });
     res.json(pago);
   })
@@ -77,7 +77,8 @@ router.post(
 router.delete(
   "/:id",
   wrap(async (req, res) => {
-    await paymentsService.remove(Number(req.params.id));
+    const ok = await paymentsService.remove(Number(req.params.id), req.usuario);
+    if (!ok) return res.status(404).json({ error: "Pago no encontrado" });
     res.status(204).end();
   })
 );

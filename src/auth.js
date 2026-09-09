@@ -8,9 +8,11 @@ if (!SECRETO) {
 }
 
 function generarToken(usuario) {
-  return jwt.sign({ sub: usuario.usuario, nombre: usuario.nombre }, SECRETO || "cambia-esto", {
-    expiresIn: "30d",
-  });
+  return jwt.sign(
+    { sub: usuario.usuario, nombre: usuario.nombre, rol: usuario.rol || "usuario" },
+    SECRETO || "cambia-esto",
+    { expiresIn: "30d" }
+  );
 }
 
 function requireAuth(req, res, next) {
@@ -20,11 +22,18 @@ function requireAuth(req, res, next) {
 
   try {
     const payload = jwt.verify(token, SECRETO || "cambia-esto");
-    req.usuario = { usuario: payload.sub, nombre: payload.nombre };
+    req.usuario = { usuario: payload.sub, nombre: payload.nombre, rol: payload.rol || "usuario" };
     next();
   } catch {
     return res.status(401).json({ error: "Sesion invalida o expirada" });
   }
 }
 
-module.exports = { generarToken, requireAuth };
+function requireJefe(req, res, next) {
+  if (req.usuario?.rol !== "jefe") {
+    return res.status(403).json({ error: "Solo el jefe puede hacer esto" });
+  }
+  next();
+}
+
+module.exports = { generarToken, requireAuth, requireJefe };
