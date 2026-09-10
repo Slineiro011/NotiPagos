@@ -65,7 +65,27 @@
     </section>
 
     <section id="tab-config" class="tab-panel">
-      <p id="config-no-jefe" class="ayuda-texto solo-usuario" style="display:none;">Esta sección la administra el jefe. Aquí solo puedes ver y gestionar tus propios pagos, desde las pestañas "Pagos" e "Historial".</p>
+      <div class="config-grid">
+        <div class="card">
+          <h2>Mi cuenta</h2>
+          <p class="ayuda-texto">Usuario: <strong id="perfil-usuario"></strong></p>
+
+          <label>Tu número de WhatsApp (para recibir recordatorios y usar el bot)
+            <input type="text" id="perfil-telefono" placeholder="573001234567" />
+          </label>
+          <button id="btn-guardar-telefono" class="btn-secundario">Guardar número</button>
+          <span id="perfil-telefono-guardado" class="ok-texto"></span>
+
+          <h2 style="margin-top:18px;">Cambiar contraseña</h2>
+          <label>Nueva contraseña
+            <input type="password" id="perfil-password" autocomplete="new-password" placeholder="Déjala vacía para no cambiarla" />
+          </label>
+          <button id="btn-guardar-password" class="btn-secundario">Cambiar contraseña</button>
+          <span id="perfil-password-guardado" class="ok-texto"></span>
+        </div>
+      </div>
+
+      <p id="config-no-jefe" class="ayuda-texto solo-usuario" style="display:none;">Los números globales de notificación y la hora del recordatorio los administra el jefe.</p>
       <div class="config-grid solo-jefe">
         <div class="card">
           <h2>WhatsApp (API oficial de Meta)</h2>

@@ -13,9 +13,13 @@ class ConfiguracionScreen extends StatefulWidget {
 class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
   final _numerosCtrl = TextEditingController();
   final _urlCtrl = TextEditingController();
+  final _telefonoCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
   TimeOfDay _hora = const TimeOfDay(hour: 8, minute: 0);
   bool _cargando = true;
   bool _guardando = false;
+  bool _guardandoTelefono = false;
+  bool _guardandoPassword = false;
   bool _esJefe = false;
   String _nombre = '';
 
@@ -29,6 +33,8 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
   void dispose() {
     _numerosCtrl.dispose();
     _urlCtrl.dispose();
+    _telefonoCtrl.dispose();
+    _passwordCtrl.dispose();
     super.dispose();
   }
 
@@ -36,6 +42,14 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
     _urlCtrl.text = await ApiService.getBaseUrl();
     _nombre = await ApiService.getNombre();
     _esJefe = await ApiService.esJefe();
+
+    try {
+      final perfil = await ApiService.getPerfil();
+      _telefonoCtrl.text = (perfil['telefono'] as String?) ?? '';
+    } catch (_) {
+      // si falla, el campo queda vacio y se puede reintentar guardando
+    }
+
     if (_esJefe) {
       try {
         final config = await ApiService.getConfiguracion();
@@ -50,6 +64,43 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
       }
     }
     if (mounted) setState(() => _cargando = false);
+  }
+
+  Future<void> _guardarTelefono() async {
+    setState(() => _guardandoTelefono = true);
+    try {
+      await ApiService.actualizarPerfil(telefono: _telefonoCtrl.text.trim());
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Número guardado ✔')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al guardar: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _guardandoTelefono = false);
+    }
+  }
+
+  Future<void> _guardarPassword() async {
+    if (_passwordCtrl.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Escribe la nueva contraseña primero')));
+      return;
+    }
+    setState(() => _guardandoPassword = true);
+    try {
+      await ApiService.actualizarPerfil(password: _passwordCtrl.text);
+      _passwordCtrl.clear();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Contraseña actualizada ✔')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al cambiar la contraseña: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _guardandoPassword = false);
+    }
   }
 
   Future<void> _elegirHora() async {
@@ -105,11 +156,54 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                 style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
               ),
             ),
+          _tarjeta(
+            titulo: 'Mi cuenta',
+            hijo: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Tu número de WhatsApp', style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 6),
+                const Text(
+                  'Para recibir tus recordatorios y usar el bot. Incluye el código de país sin "+" (ej: 573001234567).',
+                  style: TextStyle(color: Colors.grey, fontSize: 12.5),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _telefonoCtrl,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(border: OutlineInputBorder(), hintText: '573001234567'),
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton(
+                  onPressed: _guardandoTelefono ? null : _guardarTelefono,
+                  child: _guardandoTelefono
+                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Guardar número'),
+                ),
+                const SizedBox(height: 20),
+                const Text('Cambiar contraseña', style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _passwordCtrl,
+                  obscureText: true,
+                  decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'Nueva contraseña'),
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton(
+                  onPressed: _guardandoPassword ? null : _guardarPassword,
+                  child: _guardandoPassword
+                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Cambiar contraseña'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
           if (!_esJefe)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: Text(
-                'Los números y la hora de los recordatorios los administra el jefe. Aquí solo ves y gestionas tus propios pagos.',
+                'Los números globales y la hora de los recordatorios los administra el jefe.',
                 style: TextStyle(color: Colors.grey.shade600, fontSize: 12.5),
               ),
             ),
@@ -147,26 +241,28 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                 ],
               ),
             ),
-          if (_esJefe) const SizedBox(height: 16),
-          _tarjeta(
-            titulo: 'Servidor',
-            hijo: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Dirección del backend al que se conecta la app. No la cambies a menos que sepas lo que haces.',
-                  style: TextStyle(color: Colors.grey, fontSize: 12.5),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: _urlCtrl,
-                  decoration: const InputDecoration(border: OutlineInputBorder()),
-                ),
-                const SizedBox(height: 10),
-                OutlinedButton(onPressed: _guardarUrl, child: const Text('Guardar servidor')),
-              ],
+          if (_esJefe) ...[
+            const SizedBox(height: 16),
+            _tarjeta(
+              titulo: 'Servidor',
+              hijo: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Dirección del backend al que se conecta la app. No la cambies a menos que sepas lo que haces.',
+                    style: TextStyle(color: Colors.grey, fontSize: 12.5),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _urlCtrl,
+                    decoration: const InputDecoration(border: OutlineInputBorder()),
+                  ),
+                  const SizedBox(height: 10),
+                  OutlinedButton(onPressed: _guardarUrl, child: const Text('Guardar servidor')),
+                ],
+              ),
             ),
-          ),
+          ],
           const SizedBox(height: 16),
           OutlinedButton.icon(
             onPressed: widget.onSalir,
@@ -180,7 +276,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
           const SizedBox(height: 24),
           Center(
             child: Text(
-              'NotiPagos v1.5.0+8 · Desarrollado por SlinMask Labs',
+              'NotiPagos v1.5.2+10 · Desarrollado por SlinMask Labs',
               style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
             ),
           ),

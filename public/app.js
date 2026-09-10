@@ -326,12 +326,59 @@ form.addEventListener("submit", async (e) => {
 
 // ---------- Configuración ----------
 async function cargarConfiguracion() {
+  const perfilRes = await apiFetch("/auth/perfil");
+  const perfil = await perfilRes.json();
+  document.getElementById("perfil-usuario").textContent = perfil.nombre || perfil.usuario;
+  document.getElementById("perfil-telefono").value = perfil.telefono || "";
+  document.getElementById("perfil-telefono-guardado").textContent = "";
+  document.getElementById("perfil-password-guardado").textContent = "";
+  document.getElementById("perfil-password").value = "";
+
+  if (!esJefe()) return;
+
   const res = await apiFetch("/configuracion");
   const config = await res.json();
   document.getElementById("input-numeros").value = (config.numeros_whatsapp || "").split(",").filter(Boolean).join("\n");
   document.getElementById("input-hora").value = config.hora_recordatorio || "08:00";
   document.getElementById("whatsapp-estado").innerHTML = "";
 }
+
+document.getElementById("btn-guardar-telefono").addEventListener("click", async () => {
+  const telefono = document.getElementById("perfil-telefono").value.trim();
+  try {
+    await apiFetch("/auth/perfil", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telefono }),
+    });
+    const aviso = document.getElementById("perfil-telefono-guardado");
+    aviso.textContent = "Guardado ✔";
+    setTimeout(() => (aviso.textContent = ""), 2500);
+  } catch (err) {
+    alert("No se pudo guardar el número: " + err.message);
+  }
+});
+
+document.getElementById("btn-guardar-password").addEventListener("click", async () => {
+  const password = document.getElementById("perfil-password").value;
+  if (!password) {
+    alert("Escribe la nueva contraseña primero.");
+    return;
+  }
+  try {
+    await apiFetch("/auth/perfil", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    });
+    document.getElementById("perfil-password").value = "";
+    const aviso = document.getElementById("perfil-password-guardado");
+    aviso.textContent = "Contraseña actualizada ✔";
+    setTimeout(() => (aviso.textContent = ""), 2500);
+  } catch (err) {
+    alert("No se pudo cambiar la contraseña: " + err.message);
+  }
+});
 
 document.getElementById("btn-guardar-config").addEventListener("click", async () => {
   const numeros = document

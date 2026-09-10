@@ -91,6 +91,24 @@ class ApiService {
 
   static Future<bool> esJefe() async => (await getRol()) == 'jefe';
 
+  static Future<Map<String, dynamic>> getPerfil() async {
+    final res = await http.get(await _uri('/auth/perfil'), headers: await _headers());
+    _verificar(res);
+    return jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+  }
+
+  static Future<void> actualizarPerfil({String? telefono, String? password}) async {
+    final cambios = <String, dynamic>{};
+    if (telefono != null) cambios['telefono'] = telefono;
+    if (password != null && password.isNotEmpty) cambios['password'] = password;
+    final res = await http.put(
+      await _uri('/auth/perfil'),
+      headers: await _headers(),
+      body: jsonEncode(cambios),
+    );
+    _verificar(res);
+  }
+
   static Future<Uri> _uri(String path, [Map<String, String>? query]) async {
     final base = await getBaseUrl();
     return Uri.parse('$base$path').replace(queryParameters: query);

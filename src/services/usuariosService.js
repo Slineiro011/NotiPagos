@@ -68,7 +68,7 @@ async function verificarPassword(usuario, passwordPlano) {
   const fila = await getByUsuario(usuario);
   if (!fila) return null;
   const ok = await bcrypt.compare(passwordPlano, fila.password_hash);
-  return ok ? { id: fila.id, usuario: fila.usuario, nombre: fila.nombre, rol: fila.rol } : null;
+  return ok ? { id: fila.id, usuario: fila.usuario, nombre: fila.nombre, rol: fila.rol, telefono: fila.telefono } : null;
 }
 
 module.exports = { getByUsuario, getByTelefono, listar, crear, actualizar, eliminar, verificarPassword };
