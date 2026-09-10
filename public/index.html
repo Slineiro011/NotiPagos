@@ -68,9 +68,20 @@
       <div class="config-grid">
         <div class="card">
           <h2>Mi cuenta</h2>
-          <p class="ayuda-texto">Usuario: <strong id="perfil-usuario"></strong></p>
 
-          <label>Tu número de WhatsApp (para recibir recordatorios y usar el bot)
+          <label>Nombre
+            <input type="text" id="perfil-nombre" />
+          </label>
+          <button id="btn-guardar-nombre" class="btn-secundario">Guardar nombre</button>
+          <span id="perfil-nombre-guardado" class="ok-texto"></span>
+
+          <label style="margin-top:14px;">Usuario (para iniciar sesión)
+            <input type="text" id="perfil-usuario-input" />
+          </label>
+          <button id="btn-guardar-usuario" class="btn-secundario">Guardar usuario</button>
+          <span id="perfil-usuario-guardado" class="ok-texto"></span>
+
+          <label style="margin-top:14px;">Tu número de WhatsApp (para recibir recordatorios y usar el bot)
             <input type="text" id="perfil-telefono" placeholder="573001234567" />
           </label>
           <button id="btn-guardar-telefono" class="btn-secundario">Guardar número</button>

@@ -328,8 +328,11 @@ form.addEventListener("submit", async (e) => {
 async function cargarConfiguracion() {
   const perfilRes = await apiFetch("/auth/perfil");
   const perfil = await perfilRes.json();
-  document.getElementById("perfil-usuario").textContent = perfil.nombre || perfil.usuario;
+  document.getElementById("perfil-nombre").value = perfil.nombre || "";
+  document.getElementById("perfil-usuario-input").value = perfil.usuario || "";
   document.getElementById("perfil-telefono").value = perfil.telefono || "";
+  document.getElementById("perfil-nombre-guardado").textContent = "";
+  document.getElementById("perfil-usuario-guardado").textContent = "";
   document.getElementById("perfil-telefono-guardado").textContent = "";
   document.getElementById("perfil-password-guardado").textContent = "";
   document.getElementById("perfil-password").value = "";
@@ -343,14 +346,55 @@ async function cargarConfiguracion() {
   document.getElementById("whatsapp-estado").innerHTML = "";
 }
 
+/** Aplica los cambios de perfil (nombre, usuario, telefono o password) y
+ * actualiza la sesion local con el token/datos que devuelve el servidor,
+ * ya que el usuario o el nombre pudieron haber cambiado. */
+async function guardarPerfil(cambios) {
+  const res = await apiFetch("/auth/perfil", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(cambios),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "No se pudo guardar");
+  setToken(data.token);
+  setSesion({ usuario: data.usuario, nombre: data.nombre, rol: data.rol });
+  const etiqueta = document.getElementById("sesion-usuario");
+  if (etiqueta) etiqueta.textContent = `${data.nombre}${data.rol === "jefe" ? " (jefe)" : ""}`;
+  return data;
+}
+
+document.getElementById("btn-guardar-nombre").addEventListener("click", async () => {
+  const nombre = document.getElementById("perfil-nombre").value.trim();
+  if (!nombre) return alert("El nombre no puede quedar vacío.");
+  try {
+    await guardarPerfil({ nombre });
+    const aviso = document.getElementById("perfil-nombre-guardado");
+    aviso.textContent = "Guardado ✔";
+    setTimeout(() => (aviso.textContent = ""), 2500);
+  } catch (err) {
+    alert("No se pudo guardar el nombre: " + err.message);
+  }
+});
+
+document.getElementById("btn-guardar-usuario").addEventListener("click", async () => {
+  const usuario = document.getElementById("perfil-usuario-input").value.trim();
+  if (!usuario) return alert("El usuario no puede quedar vacío.");
+  if (!confirm(`¿Cambiar tu usuario de inicio de sesión a "${usuario}"? La próxima vez que entres deberás usar este nuevo nombre de usuario.`)) return;
+  try {
+    await guardarPerfil({ usuario });
+    const aviso = document.getElementById("perfil-usuario-guardado");
+    aviso.textContent = "Guardado ✔";
+    setTimeout(() => (aviso.textContent = ""), 2500);
+  } catch (err) {
+    alert("No se pudo guardar el usuario: " + err.message);
+  }
+});
+
 document.getElementById("btn-guardar-telefono").addEventListener("click", async () => {
   const telefono = document.getElementById("perfil-telefono").value.trim();
   try {
-    await apiFetch("/auth/perfil", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ telefono }),
-    });
+    await guardarPerfil({ telefono });
     const aviso = document.getElementById("perfil-telefono-guardado");
     aviso.textContent = "Guardado ✔";
     setTimeout(() => (aviso.textContent = ""), 2500);
@@ -366,11 +410,7 @@ document.getElementById("btn-guardar-password").addEventListener("click", async 
     return;
   }
   try {
-    await apiFetch("/auth/perfil", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password }),
-    });
+    await guardarPerfil({ password });
     document.getElementById("perfil-password").value = "";
     const aviso = document.getElementById("perfil-password-guardado");
     aviso.textContent = "Contraseña actualizada ✔";

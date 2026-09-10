@@ -43,10 +43,25 @@ router.put(
   "/perfil",
   requireAuth,
   wrap(async (req, res) => {
-    const { telefono, password } = req.body;
-    const actualizado = await usuariosService.actualizar(req.usuario.usuario, { telefono, password });
+    const { nombre, telefono, password, usuario } = req.body;
+    let usuarioActual = req.usuario.usuario;
+
+    const nuevoUsuario = typeof usuario === "string" ? usuario.trim() : "";
+    if (nuevoUsuario && nuevoUsuario !== usuarioActual) {
+      const existente = await usuariosService.getByUsuario(nuevoUsuario);
+      if (existente) return res.status(409).json({ error: "Ya existe un usuario con ese nombre" });
+      const renombrado = await usuariosService.cambiarUsuario(usuarioActual, nuevoUsuario);
+      if (!renombrado) return res.status(404).json({ error: "Usuario no encontrado" });
+      usuarioActual = nuevoUsuario;
+    }
+
+    const actualizado = await usuariosService.actualizar(usuarioActual, { nombre, telefono, password });
     if (!actualizado) return res.status(404).json({ error: "Usuario no encontrado" });
-    res.json(actualizado);
+
+    // El usuario y/o el nombre pudieron cambiar: se reemite el token para que
+    // el cliente no quede con datos de sesion desactualizados.
+    const token = generarToken(actualizado);
+    res.json({ ...actualizado, token });
   })
 );
 

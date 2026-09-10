@@ -97,8 +97,13 @@ class ApiService {
     return jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
   }
 
-  static Future<void> actualizarPerfil({String? telefono, String? password}) async {
+  /// Actualiza nombre, usuario, telefono y/o contraseña propios. El servidor
+  /// devuelve un token nuevo (el usuario o el nombre pudieron cambiar), asi
+  /// que se guarda la sesion local con esos datos actualizados.
+  static Future<void> actualizarPerfil({String? nombre, String? usuario, String? telefono, String? password}) async {
     final cambios = <String, dynamic>{};
+    if (nombre != null) cambios['nombre'] = nombre;
+    if (usuario != null) cambios['usuario'] = usuario;
     if (telefono != null) cambios['telefono'] = telefono;
     if (password != null && password.isNotEmpty) cambios['password'] = password;
     final res = await http.put(
@@ -107,6 +112,12 @@ class ApiService {
       body: jsonEncode(cambios),
     );
     _verificar(res);
+    final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+    await _setToken(data['token'] as String);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_clavePrefNombre, (data['nombre'] ?? '') as String);
+    await prefs.setString(_clavePrefRol, (data['rol'] ?? 'usuario') as String);
+    await prefs.setString(_clavePrefUsuario, (data['usuario'] ?? '') as String);
   }
 
   static Future<Uri> _uri(String path, [Map<String, String>? query]) async {

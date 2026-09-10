@@ -13,11 +13,15 @@ class ConfiguracionScreen extends StatefulWidget {
 class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
   final _numerosCtrl = TextEditingController();
   final _urlCtrl = TextEditingController();
+  final _nombreCtrl = TextEditingController();
+  final _usuarioCtrl = TextEditingController();
   final _telefonoCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   TimeOfDay _hora = const TimeOfDay(hour: 8, minute: 0);
   bool _cargando = true;
   bool _guardando = false;
+  bool _guardandoNombre = false;
+  bool _guardandoUsuario = false;
   bool _guardandoTelefono = false;
   bool _guardandoPassword = false;
   bool _esJefe = false;
@@ -33,6 +37,8 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
   void dispose() {
     _numerosCtrl.dispose();
     _urlCtrl.dispose();
+    _nombreCtrl.dispose();
+    _usuarioCtrl.dispose();
     _telefonoCtrl.dispose();
     _passwordCtrl.dispose();
     super.dispose();
@@ -45,6 +51,8 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
 
     try {
       final perfil = await ApiService.getPerfil();
+      _nombreCtrl.text = (perfil['nombre'] as String?) ?? '';
+      _usuarioCtrl.text = (perfil['usuario'] as String?) ?? '';
       _telefonoCtrl.text = (perfil['telefono'] as String?) ?? '';
     } catch (_) {
       // si falla, el campo queda vacio y se puede reintentar guardando
@@ -64,6 +72,63 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
       }
     }
     if (mounted) setState(() => _cargando = false);
+  }
+
+  Future<void> _guardarNombre() async {
+    final nombre = _nombreCtrl.text.trim();
+    if (nombre.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('El nombre no puede quedar vacío')));
+      return;
+    }
+    setState(() => _guardandoNombre = true);
+    try {
+      await ApiService.actualizarPerfil(nombre: nombre);
+      _nombre = nombre;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nombre guardado ✔')));
+        setState(() {});
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al guardar: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _guardandoNombre = false);
+    }
+  }
+
+  Future<void> _guardarUsuario() async {
+    final usuario = _usuarioCtrl.text.trim();
+    if (usuario.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('El usuario no puede quedar vacío')));
+      return;
+    }
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Cambiar usuario'),
+        content: Text('¿Cambiar tu usuario de inicio de sesión a "$usuario"? La próxima vez que entres deberás usar este nuevo nombre de usuario.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Confirmar')),
+        ],
+      ),
+    );
+    if (confirmar != true) return;
+
+    setState(() => _guardandoUsuario = true);
+    try {
+      await ApiService.actualizarPerfil(usuario: usuario);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Usuario actualizado ✔')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al guardar: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _guardandoUsuario = false);
+    }
   }
 
   Future<void> _guardarTelefono() async {
@@ -161,6 +226,34 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
             hijo: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                const Text('Nombre', style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _nombreCtrl,
+                  decoration: const InputDecoration(border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton(
+                  onPressed: _guardandoNombre ? null : _guardarNombre,
+                  child: _guardandoNombre
+                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Guardar nombre'),
+                ),
+                const SizedBox(height: 20),
+                const Text('Usuario (para iniciar sesión)', style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _usuarioCtrl,
+                  decoration: const InputDecoration(border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton(
+                  onPressed: _guardandoUsuario ? null : _guardarUsuario,
+                  child: _guardandoUsuario
+                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Guardar usuario'),
+                ),
+                const SizedBox(height: 20),
                 const Text('Tu número de WhatsApp', style: TextStyle(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 6),
                 const Text(
@@ -276,7 +369,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
           const SizedBox(height: 24),
           Center(
             child: Text(
-              'NotiPagos v1.5.2+10 · Desarrollado por SlinMask Labs',
+              'NotiPagos v1.5.3+11 · Desarrollado por SlinMask Labs',
               style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
             ),
           ),

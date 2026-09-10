@@ -64,6 +64,38 @@ async function eliminar(usuario) {
   return rowCount > 0;
 }
 
+/**
+ * Renombra el identificador de inicio de sesion de un usuario y propaga el
+ * cambio a las tablas que lo referencian por valor (no por id): los pagos
+ * que creo, su historial y sus dispositivos registrados. Todo en una sola
+ * transaccion para que nunca quede a medias.
+ */
+async function cambiarUsuario(usuarioActual, nuevoUsuario) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query(
+      `UPDATE usuarios SET usuario = $2 WHERE usuario = $1
+       RETURNING id, usuario, nombre, rol, telefono`,
+      [usuarioActual, nuevoUsuario]
+    );
+    if (!rows[0]) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+    await client.query("UPDATE pagos SET creado_por = $2 WHERE creado_por = $1", [usuarioActual, nuevoUsuario]);
+    await client.query("UPDATE historial_pagos SET creado_por = $2 WHERE creado_por = $1", [usuarioActual, nuevoUsuario]);
+    await client.query("UPDATE dispositivos SET usuario = $2 WHERE usuario = $1", [usuarioActual, nuevoUsuario]);
+    await client.query("COMMIT");
+    return rows[0];
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 async function verificarPassword(usuario, passwordPlano) {
   const fila = await getByUsuario(usuario);
   if (!fila) return null;
@@ -71,4 +103,13 @@ async function verificarPassword(usuario, passwordPlano) {
   return ok ? { id: fila.id, usuario: fila.usuario, nombre: fila.nombre, rol: fila.rol, telefono: fila.telefono } : null;
 }
 
-module.exports = { getByUsuario, getByTelefono, listar, crear, actualizar, eliminar, verificarPassword };
+module.exports = {
+  getByUsuario,
+  getByTelefono,
+  listar,
+  crear,
+  actualizar,
+  eliminar,
+  cambiarUsuario,
+  verificarPassword,
+};
