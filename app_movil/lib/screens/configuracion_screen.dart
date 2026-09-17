@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../services/notificaciones_service.dart';
 
 class ConfiguracionScreen extends StatefulWidget {
   final VoidCallback onSalir;
@@ -287,6 +288,25 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                   child: _guardandoPassword
                       ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
                       : const Text('Cambiar contraseña'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          _tarjeta(
+            titulo: 'Alarma de recordatorios',
+            hijo: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Los recordatorios de pago suenan fuerte, como una alarma, y no paran hasta que los apagues (aunque el celular este en silencio). Pruébala para saber cómo se ve y se escucha cuando suene de verdad.',
+                  style: TextStyle(color: Colors.grey, fontSize: 12.5),
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: () => NotificacionesService.probarAlarma(),
+                  icon: const Icon(Icons.notifications_active),
+                  label: const Text('Probar alarma'),
                 ),
               ],
             ),

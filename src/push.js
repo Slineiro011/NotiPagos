@@ -44,10 +44,14 @@ async function enviarATokens(tokens, { titulo, cuerpo, datos = {} }) {
   if (!app) return { enviados: 0, motivo: "sin_credencial" };
   if (!tokens.length) return { enviados: 0, motivo: "sin_dispositivos" };
 
+  // Mensaje de "solo datos" (sin bloque "notification"): asi Android siempre
+  // lo entrega a la app (aunque este cerrada) en vez de mostrar el aviso
+  // generico del sistema, que no permite sonido en bucle tipo alarma.
   const mensaje = {
     tokens,
-    notification: { title: titulo, body: cuerpo },
-    data: Object.fromEntries(Object.entries(datos).map(([k, v]) => [k, String(v)])),
+    data: Object.fromEntries(
+      Object.entries({ ...datos, titulo, cuerpo }).map(([k, v]) => [k, String(v)])
+    ),
     android: { priority: "high" },
   };
 
