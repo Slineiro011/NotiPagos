@@ -174,4 +174,4 @@ Si el usuario no da informacion util para esto, dice que no sabe, o pide saltar/
   }
 }
 
-module.exports = { interpretarMensaje, interpretarCampo, redactarRespuesta, CATEGORIAS, RECURRENCIAS };
+module.exports = { interpretarMensaje, interpretarCampo, redactarRespuesta, esErrorTemporal, CATEGORIAS, RECURRENCIAS };

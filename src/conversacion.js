@@ -164,6 +164,7 @@ async function continuarBorrador(numero, borrador, texto, usuarioActual) {
     resultado = await gemini.interpretarCampo(campoActual.campo, texto, empresasConocidas);
   } catch (err) {
     console.error("Error interpretando respuesta de campo pendiente:", err.message);
+    if (gemini.esErrorTemporal(err)) return responder(numero, MENSAJE_ALTA_DEMANDA);
     return responder(numero, "No logré entenderlo, ¿puedes intentar de nuevo?");
   }
 
@@ -209,6 +210,7 @@ async function configurarHora(numero, hora) {
 }
 
 const SOLO_JEFE = "🔒 Solo el jefe puede cambiar esa configuración. Puedes seguir preguntándome por tus pagos cuando quieras.";
+const MENSAJE_ALTA_DEMANDA = "🙏 En este momento tengo mucha demanda y no puedo procesar tu mensaje. Intenta de nuevo en un par de minutos.";
 
 async function manejarMensaje(numero, textoOriginal) {
   const texto = (textoOriginal || "").trim();
@@ -248,6 +250,7 @@ async function manejarMensaje(numero, textoOriginal) {
     intencion = await gemini.interpretarMensaje(texto, empresasConocidas);
   } catch (err) {
     console.error("Error interpretando mensaje con Gemini:", err.message);
+    if (gemini.esErrorTemporal(err)) return responder(numero, MENSAJE_ALTA_DEMANDA);
     return responder(numero, "Tuve un problema entendiendo tu mensaje. Intenta de nuevo o escribe *ayuda*.");
   }
 
