@@ -6,9 +6,14 @@ const MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash";
 const CATEGORIAS = ["SOAT", "Póliza", "Nómina", "Impuestos", "Servicios públicos", "Arriendo", "Proveedores", "Otro"];
 const RECURRENCIAS = ["ninguna", "mensual", "bimestral", "trimestral", "semestral", "anual"];
 
-async function llamarGemini(systemInstructionText, userText, { json = false, temperature = 0.3 } = {}) {
-  if (!API_KEY) throw new Error("Falta configurar GEMINI_API_KEY en las variables de entorno.");
+const REINTENTOS = 2; // numero de reintentos adicionales tras el primer intento
+const ESPERA_BASE_MS = 1000;
 
+function esperar(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function llamarGeminiUnaVez(systemInstructionText, userText, { json, temperature }) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`;
   const res = await fetch(url, {
     method: "POST",
@@ -26,12 +31,35 @@ async function llamarGemini(systemInstructionText, userText, { json = false, tem
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const detalle = data?.error?.message || JSON.stringify(data);
-    throw new Error(`Gemini respondio con error: ${detalle}`);
+    const err = new Error(`Gemini respondio con error: ${detalle}`);
+    err.status = res.status;
+    throw err;
   }
 
   const crudo = data?.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!crudo) throw new Error("Gemini no devolvio contenido interpretable.");
   return crudo;
+}
+
+/** Modelo saturado (503) o sobrecargado: vale la pena reintentar, a diferencia de una API key invalida (400/403). */
+function esErrorTemporal(err) {
+  return err.status === 503 || /overloaded|high demand|unavailable/i.test(err.message || "");
+}
+
+async function llamarGemini(systemInstructionText, userText, { json = false, temperature = 0.3 } = {}) {
+  if (!API_KEY) throw new Error("Falta configurar GEMINI_API_KEY en las variables de entorno.");
+
+  for (let intento = 0; intento <= REINTENTOS; intento++) {
+    try {
+      return await llamarGeminiUnaVez(systemInstructionText, userText, { json, temperature });
+    } catch (err) {
+      const esUltimoIntento = intento === REINTENTOS;
+      if (esUltimoIntento || !esErrorTemporal(err)) throw err;
+      const espera = ESPERA_BASE_MS * 2 ** intento;
+      console.warn(`Gemini saturado (intento ${intento + 1}/${REINTENTOS + 1}), reintentando en ${espera}ms:`, err.message);
+      await esperar(espera);
+    }
+  }
 }
 
 function systemPromptInterpretar(empresasConocidas = []) {
