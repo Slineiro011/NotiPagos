@@ -42,6 +42,10 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="alarma_pagos" />
+        <!-- Sin este receptor, el boton "Apagar" de la notificacion de alarma
+             no hace nada: Android descarta en silencio el PendingIntent porque
+             apunta a un componente que no existe en el manifest. -->
+        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
