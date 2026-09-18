@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
@@ -6,6 +7,9 @@
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <!-- Permite que la notificacion de alarma se muestre a pantalla completa aunque el telefono este bloqueado. -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
+    <!-- Para el servicio en primer plano que reproduce el sonido de la alarma. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
     <application
         android:label="NotiPagos"
         android:name="${applicationName}"
@@ -42,10 +46,28 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="alarma_pagos" />
-        <!-- Sin este receptor, el boton "Apagar" de la notificacion de alarma
-             no hace nada: Android descarta en silencio el PendingIntent porque
-             apunta a un componente que no existe en el manifest. -->
-        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver" />
+        <!-- Servicio en primer plano que reproduce el sonido de la alarma con
+             su propio MediaPlayer, inmune a que lleguen otras notificaciones,
+             se abra el panel de notificaciones o se toque el volumen. -->
+        <service
+            android:name=".AlarmService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+        <!-- Reemplaza el servicio de mensajeria por defecto del plugin para
+             poder arrancar la alarma nativa de inmediato al recibir el push,
+             sin depender del isolate de Dart en segundo plano (mucho menos
+             confiable cuando la app esta completamente cerrada). -->
+        <service
+            android:name="io.flutter.plugins.firebase.messaging.FlutterFirebaseMessagingService"
+            tools:node="remove" />
+        <service
+            android:name=".NotiPagosMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT"/>
+            </intent-filter>
+        </service>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
