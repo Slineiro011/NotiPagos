@@ -16,6 +16,13 @@ const pool = new Pool({
   ssl: esLocal ? false : { rejectUnauthorized: false },
 });
 
+// Neon cierra las conexiones inactivas (por ejemplo al suspenderse). Sin este
+// manejador, pg emite un "error" no capturado y tumba todo el servidor; con el,
+// el pool descarta esa conexion y abre otra en la siguiente consulta.
+pool.on("error", (err) => {
+  console.error("Conexion inactiva de Postgres cerrada:", err.message);
+});
+
 async function migrar() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS pagos (
