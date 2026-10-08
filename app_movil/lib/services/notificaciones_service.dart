@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -5,12 +7,42 @@ import 'api_service.dart';
 
 const MethodChannel _canalAlarma = MethodChannel('com.smartlatam.notipagos_app/alarma');
 
+/// Permite mostrar el dialogo de la alarma en iOS desde fuera de un widget.
+final GlobalKey<NavigatorState> navegadorGlobal = GlobalKey<NavigatorState>();
+
 Future<void> _iniciarAlarmaNativa({required String titulo, required String cuerpo}) async {
   try {
     await _canalAlarma.invokeMethod('iniciar', {'titulo': titulo, 'cuerpo': cuerpo});
   } catch (_) {
     // Si falla (ej. plataforma no soportada), no interrumpe el resto de la app.
+    return;
   }
+  // En Android el boton "Apagar" viene en la notificacion del AlarmService.
+  // En iOS no hay notificacion persistente con la app abierta, asi que se
+  // muestra un dialogo para apagar la alarma.
+  if (Platform.isIOS) _mostrarDialogoAlarma(titulo: titulo, cuerpo: cuerpo);
+}
+
+void _mostrarDialogoAlarma({required String titulo, required String cuerpo}) {
+  final contexto = navegadorGlobal.currentContext;
+  if (contexto == null) return;
+  showDialog<void>(
+    context: contexto,
+    barrierDismissible: false,
+    builder: (contextoDialogo) => AlertDialog(
+      title: Text(titulo),
+      content: Text(cuerpo),
+      actions: [
+        FilledButton(
+          onPressed: () {
+            _canalAlarma.invokeMethod('detener').catchError((_) {});
+            Navigator.of(contextoDialogo).pop();
+          },
+          child: const Text('🔕 Apagar'),
+        ),
+      ],
+    ),
+  );
 }
 
 /// Debe ser una funcion de nivel superior (top-level) para que Android pueda
@@ -39,7 +71,8 @@ class NotificacionesService {
 
     // Con la app abierta en primer plano, el mensaje de "solo datos" no pasa
     // por NotiPagosMessagingService (ese solo actua en segundo plano), asi
-    // que aqui se dispara la alarma nativa manualmente.
+    // que aqui se dispara la alarma nativa manualmente. En iOS tampoco se
+    // muestra el aviso del sistema con la app abierta; suena el AppDelegate.
     FirebaseMessaging.onMessage.listen((mensaje) {
       final titulo = (mensaje.data['titulo'] as String?) ?? '🔔 Recordatorio de pago';
       final cuerpo = (mensaje.data['cuerpo'] as String?) ?? 'Tienes un pago pendiente.';
@@ -63,9 +96,16 @@ class NotificacionesService {
 
   static Future<void> _registrarToken() async {
     try {
+      // En iOS, FCM no entrega token hasta que Apple asigna el token APNs,
+      // que puede tardar unos segundos tras aceptar los permisos.
+      if (Platform.isIOS) {
+        for (var i = 0; i < 10 && await FirebaseMessaging.instance.getAPNSToken() == null; i++) {
+          await Future.delayed(const Duration(seconds: 1));
+        }
+      }
       final token = await FirebaseMessaging.instance.getToken();
       if (token != null) {
-        await ApiService.registrarDispositivo(token, plataforma: 'android');
+        await ApiService.registrarDispositivo(token, plataforma: Platform.isIOS ? 'ios' : 'android');
       }
     } catch (_) {
       // Si falla el registro del token no se interrumpe el uso de la app;

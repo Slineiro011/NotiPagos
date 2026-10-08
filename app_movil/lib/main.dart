@@ -5,7 +5,7 @@ import 'screens/configuracion_screen.dart';
 import 'screens/usuarios_screen.dart';
 import 'screens/login_screen.dart';
 import 'services/api_service.dart';
-import 'services/notificaciones_service.dart' show NotificacionesService;
+import 'services/notificaciones_service.dart' show NotificacionesService, navegadorGlobal;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,6 +26,7 @@ class NotiPagosApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'NotiPagos',
+      navigatorKey: navegadorGlobal,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorSchemeSeed: const Color(0xFF2563EB),
