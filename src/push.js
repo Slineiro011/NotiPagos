@@ -53,6 +53,20 @@ async function enviarATokens(tokens, { titulo, cuerpo, datos = {} }) {
       Object.entries({ ...datos, titulo, cuerpo }).map(([k, v]) => [k, String(v)])
     ),
     android: { priority: "high" },
+    // iOS no entrega de forma confiable los mensajes de "solo datos" con la
+    // app cerrada, asi que para iPhone se manda un aviso visible con el
+    // sonido de alarma (~29 s, el maximo que permite iOS) y nivel
+    // "time-sensitive" para que atraviese los modos de concentracion.
+    apns: {
+      headers: { "apns-priority": "10", "apns-push-type": "alert" },
+      payload: {
+        aps: {
+          alert: { title: titulo, body: cuerpo },
+          sound: "alarma_pago.caf",
+          "interruption-level": "time-sensitive",
+        },
+      },
+    },
   };
 
   try {
