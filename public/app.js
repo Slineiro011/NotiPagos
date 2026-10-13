@@ -201,7 +201,7 @@ function crearTarjetaPago(pago) {
       <div class="pago-meta">🏢 ${pago.empresa} · ${pago.categoria} · $${formatMoneda(pago.monto)} · vence ${pago.fecha_vencimiento}${pago.recurrencia !== "ninguna" ? ` · se repite: ${pago.recurrencia}` : ""}${creador ? ` · 👤 ${creador}` : ""}</div>
     </div>
     <div class="pago-acciones">
-      ${pago.estado === "pendiente" ? `<button class="btn-pagado" data-accion="pagado" data-id="${pago.id}">✔ Pagado</button>` : ""}
+      ${pago.estado === "pendiente" ? `<button class="btn-pagado" data-accion="pagado" data-id="${pago.id}">✔ Confirmar como pagado</button>` : ""}
       <button data-accion="editar" data-id="${pago.id}">Editar</button>
       <button class="btn-eliminar" data-accion="eliminar" data-id="${pago.id}">Eliminar</button>
     </div>
@@ -254,7 +254,7 @@ document.getElementById("btn-exportar-excel").addEventListener("click", async (e
 
 async function manejarAccion(accion, id, pago) {
   if (accion === "pagado") {
-    if (!confirm(`¿Marcar "${pago.nombre}" como pagado?`)) return;
+    if (!confirm(`¿Confirmas que "${pago.nombre}" ya se pagó?`)) return;
     await apiFetch(`/pagos/${id}/pagado`, { method: "POST" });
     cargarPagos();
   } else if (accion === "editar") {
