@@ -212,11 +212,18 @@ async function marcarPagado(id, usuarioActual) {
   return getById(id);
 }
 
-async function getHistorial(usuarioActual, limit = 100) {
+async function getHistorial(usuarioActual, { limit = 100, empresa, usuarioFiltro } = {}) {
   const condiciones = [];
   const params = [];
+  if (empresa) {
+    params.push(empresa);
+    condiciones.push(`LOWER(historial_pagos.empresa) = LOWER($${params.length})`);
+  }
   if (esVisibilidadRestringida(usuarioActual)) {
     params.push(usuarioActual.usuario);
+    condiciones.push(`creado_por = $${params.length}`);
+  } else if (usuarioFiltro && puedeFiltrarPorUsuario(usuarioActual)) {
+    params.push(usuarioFiltro);
     condiciones.push(`creado_por = $${params.length}`);
   }
   const where = condiciones.length ? `WHERE ${condiciones.join(" AND ")}` : "";

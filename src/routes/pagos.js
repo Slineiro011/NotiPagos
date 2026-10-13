@@ -1,5 +1,6 @@
 const express = require("express");
 const paymentsService = require("../services/paymentsService");
+const { generarExcelPagos } = require("../excel");
 
 const router = express.Router();
 
@@ -32,6 +33,27 @@ router.get(
   "/historial",
   wrap(async (req, res) => {
     res.json(await paymentsService.getHistorial(req.usuario));
+  })
+);
+
+router.get(
+  "/exportar/excel",
+  wrap(async (req, res) => {
+    const { empresa, usuario } = req.query;
+    const [pendientes, pagados] = await Promise.all([
+      paymentsService.getPendientes(empresa || undefined, req.usuario, usuario || undefined),
+      paymentsService.getHistorial(req.usuario, { limit: 2000, empresa: empresa || undefined, usuarioFiltro: usuario || undefined }),
+    ]);
+    const buffer = await generarExcelPagos({ pendientes, pagados });
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="pagos_${new Date().toISOString().slice(0, 10)}.xlsx"`
+    );
+    res.send(buffer);
   })
 );
 

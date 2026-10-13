@@ -224,6 +224,34 @@ document.getElementById("filtro-usuario").addEventListener("change", (e) => {
   cargarPagos();
 });
 
+document.getElementById("btn-exportar-excel").addEventListener("click", async (e) => {
+  const boton = e.currentTarget;
+  const textoOriginal = boton.textContent;
+  boton.disabled = true;
+  boton.textContent = "Generando…";
+  try {
+    const params = new URLSearchParams();
+    if (empresaActual) params.set("empresa", empresaActual);
+    if (usuarioFiltroActual) params.set("usuario", usuarioFiltroActual);
+    const res = await apiFetch(`/pagos/exportar/excel?${params.toString()}`);
+    if (!res.ok) throw new Error(`Error del servidor (${res.status})`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const enlace = document.createElement("a");
+    enlace.href = url;
+    enlace.download = `pagos_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    document.body.appendChild(enlace);
+    enlace.click();
+    enlace.remove();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    alert("No se pudo generar el Excel: " + err.message);
+  } finally {
+    boton.disabled = false;
+    boton.textContent = textoOriginal;
+  }
+});
+
 async function manejarAccion(accion, id, pago) {
   if (accion === "pagado") {
     if (!confirm(`¿Marcar "${pago.nombre}" como pagado?`)) return;
