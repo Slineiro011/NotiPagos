@@ -236,6 +236,12 @@ class ApiService {
     if (res.statusCode < 200 || res.statusCode >= 300) throw Exception(_mensajeDe(res, 'No se pudo eliminar el usuario'));
   }
 
+  static Future<Pago> getPago(int id) async {
+    final res = await _cliente.get(await _uri('/pagos/$id'), headers: await _headers());
+    _verificar(res);
+    return Pago.fromJson(jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
+  }
+
   static Future<List<String>> getEmpresas() async {
     final res = await _cliente.get(await _uri('/pagos/empresas/lista'), headers: await _headers());
     _verificar(res);

@@ -7,15 +7,15 @@ import 'screens/login_screen.dart';
 import 'services/api_service.dart';
 import 'services/notificaciones_service.dart' show NotificacionesService, navegadorGlobal;
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  try {
-    await NotificacionesService.inicializar();
-  } catch (e) {
+  // Las notificaciones se preparan en paralelo: esperar a Firebase/APNs antes
+  // de dibujar dejaba la pantalla en blanco varios segundos al abrir.
+  NotificacionesService.inicializar().catchError((Object e) {
     // Si Firebase falla al iniciar (sin conexion, etc.) la app sigue
     // funcionando normal, solo sin notificaciones push por ahora.
     debugPrint('No se pudo inicializar las notificaciones push: $e');
-  }
+  });
   runApp(const NotiPagosApp());
 }
 
@@ -105,12 +105,26 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void initState() {
     super.initState();
+    // Al tocar un recordatorio se muestra la pestaña de Pagos, que lo abre.
+    NotificacionesService.pagoPorAbrir.addListener(_irAPagos);
     ApiService.esJefe().then((esJefe) {
       if (mounted) setState(() {
         _esJefe = esJefe;
         _cargandoRol = false;
       });
     });
+  }
+
+  @override
+  void dispose() {
+    NotificacionesService.pagoPorAbrir.removeListener(_irAPagos);
+    super.dispose();
+  }
+
+  void _irAPagos() {
+    if (NotificacionesService.pagoPorAbrir.value != null && _indice != 0) {
+      setState(() => _indice = 0);
+    }
   }
 
   @override

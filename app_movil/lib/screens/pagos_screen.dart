@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/pago.dart';
 import '../services/api_service.dart';
+import '../services/notificaciones_service.dart';
 import '../widgets/cargando.dart';
 import '../widgets/pago_card.dart';
 import 'pago_form_screen.dart';
@@ -24,6 +25,10 @@ class _PagosScreenState extends State<PagosScreen> {
   final _busquedaCtrl = TextEditingController();
   String _busqueda = '';
 
+  /// Pagos con una accion esperando el "Deshacer": se ocultan de la lista
+  /// mientras tanto para que se vea el efecto de inmediato.
+  final Set<int> _ocultos = {};
+
   final _filtros = const [
     ['pendientes', 'Pendientes'],
     ['hoy', 'Hoy'],
@@ -39,10 +44,15 @@ class _PagosScreenState extends State<PagosScreen> {
     _cargar();
     _cargarEmpresas();
     _cargarUsuarios();
+    NotificacionesService.pagoPorAbrir.addListener(_atenderPagoPorAbrir);
+    // Por si la app se abrio tocando un recordatorio antes de que esta
+    // pantalla existiera (ej. habia que iniciar sesion primero).
+    WidgetsBinding.instance.addPostFrameCallback((_) => _atenderPagoPorAbrir());
   }
 
   @override
   void dispose() {
+    NotificacionesService.pagoPorAbrir.removeListener(_atenderPagoPorAbrir);
     _busquedaCtrl.dispose();
     super.dispose();
   }
@@ -88,7 +98,16 @@ class _PagosScreenState extends State<PagosScreen> {
     }
   }
 
-  Future<void> _marcarPagado(Pago pago) async {
+  Future<void> _marcarPagado(Pago pago, {bool pedirConfirmacion = true}) async {
+    if (pedirConfirmacion && !await _confirmarPagado(pago)) return;
+    await _accionConDeshacer(
+      pago,
+      mensaje: '"${pago.nombre}" confirmado como pagado',
+      accion: () => ApiService.marcarPagado(pago.id),
+    );
+  }
+
+  Future<bool> _confirmarPagado(Pago pago) async {
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -100,8 +119,7 @@ class _PagosScreenState extends State<PagosScreen> {
         ],
       ),
     );
-    if (confirmar != true) return;
-    await _ejecutar(() => ApiService.marcarPagado(pago.id), exito: '"${pago.nombre}" marcado como pagado ✔');
+    return confirmar == true;
   }
 
   Future<void> _eliminar(Pago pago) async {
@@ -121,20 +139,103 @@ class _PagosScreenState extends State<PagosScreen> {
       ),
     );
     if (confirmar != true) return;
-    await _ejecutar(() => ApiService.eliminarPago(pago.id), exito: '"${pago.nombre}" eliminado');
+    await _accionConDeshacer(
+      pago,
+      mensaje: '"${pago.nombre}" eliminado',
+      accion: () => ApiService.eliminarPago(pago.id),
+    );
   }
 
-  /// Ejecuta una accion sobre un pago y avisa si salio bien o mal; antes, un
-  /// fallo de red pasaba en silencio y parecia que la accion habia funcionado.
-  Future<void> _ejecutar(Future<void> Function() accion, {required String exito}) async {
+  /// Oculta el pago y espera unos segundos antes de mandar la accion al
+  /// servidor; si tocan "Deshacer" en ese tiempo, nunca se envia. Se hace asi
+  /// porque confirmar un pago no se puede revertir en el servidor (queda en
+  /// el historial y, si es recurrente, ya paso al siguiente periodo).
+  Future<void> _accionConDeshacer(
+    Pago pago, {
+    required String mensaje,
+    required Future<void> Function() accion,
+  }) async {
     final mensajero = ScaffoldMessenger.of(context);
+    setState(() => _ocultos.add(pago.id));
+    // Si habia otra accion esperando, cerrar su aviso la ejecuta ya.
+    mensajero.hideCurrentSnackBar();
+    final cierre = await mensajero
+        .showSnackBar(SnackBar(
+          content: Text(mensaje),
+          duration: const Duration(seconds: 5),
+          // Con boton, Flutter deja el aviso abierto indefinidamente si no se indica esto.
+          persist: false,
+          action: SnackBarAction(label: 'Deshacer', onPressed: () {}),
+        ))
+        .closed;
+
+    if (cierre == SnackBarClosedReason.action) {
+      if (mounted) setState(() => _ocultos.remove(pago.id));
+      return;
+    }
     try {
       await accion();
-      mensajero.showSnackBar(SnackBar(content: Text(exito)));
     } catch (e) {
+      // Un fallo de red antes pasaba en silencio y parecia que habia funcionado.
       mensajero.showSnackBar(SnackBar(content: Text(mensajeError(e))));
     }
-    _cargar();
+    _ocultos.remove(pago.id);
+    if (mounted) _cargar();
+  }
+
+  /// Muestra el pago del recordatorio que se toco (o que llego con la app
+  /// abierta), con la opcion de confirmarlo directamente.
+  Future<void> _atenderPagoPorAbrir() async {
+    final id = NotificacionesService.pagoPorAbrir.value;
+    if (id == null || !mounted) return;
+    NotificacionesService.pagoPorAbrir.value = null;
+
+    final Pago pago;
+    try {
+      pago = await ApiService.getPago(id);
+    } catch (e) {
+      await NotificacionesService.detenerAlarma();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('No se pudo abrir el pago: ${mensajeError(e)}')));
+      }
+      return;
+    }
+    if (!mounted) return;
+
+    final estado = estadoVisual(pago);
+    final eleccion = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (contextoDialogo) => AlertDialog(
+        title: const Text('🔔 Recordatorio de pago'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(pago.nombre, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+            const SizedBox(height: 6),
+            Text('🏢 ${pago.empresa} · \$${_formatoMoneda.format(pago.monto)}\nVence ${pago.fechaVencimiento}'),
+            const SizedBox(height: 8),
+            Text(estado.texto, style: TextStyle(color: estado.color, fontWeight: FontWeight.w600)),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(contextoDialogo, 'cerrar'), child: const Text('Cerrar')),
+          TextButton(onPressed: () => Navigator.pop(contextoDialogo, 'editar'), child: const Text('Ver / editar')),
+          if (pago.estado == 'pendiente')
+            FilledButton(
+              onPressed: () => Navigator.pop(contextoDialogo, 'pagado'),
+              child: const Text('Confirmar como pagado'),
+            ),
+        ],
+      ),
+    );
+    // Cualquier respuesta significa que ya vieron el recordatorio.
+    await NotificacionesService.detenerAlarma();
+    if (!mounted) return;
+    if (eleccion == 'editar') await _abrirFormulario(pago: pago);
+    // Este dialogo ya es la confirmacion; no se pregunta dos veces.
+    if (eleccion == 'pagado') await _marcarPagado(pago, pedirConfirmacion: false);
   }
 
   /// Sin tildes y en minusculas, para que "poliza" encuentre "Póliza".
@@ -275,7 +376,7 @@ class _PagosScreenState extends State<PagosScreen> {
                   if (snapshot.hasError) {
                     return _mensajeCentrado('No se pudo cargar: ${mensajeError(snapshot.error!)}');
                   }
-                  final todos = snapshot.data ?? [];
+                  final todos = (snapshot.data ?? []).where((p) => !_ocultos.contains(p.id)).toList();
                   if (todos.isEmpty) {
                     return _mensajeCentrado('No hay pagos para este filtro.');
                   }

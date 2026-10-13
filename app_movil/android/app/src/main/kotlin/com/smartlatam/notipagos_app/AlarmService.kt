@@ -27,6 +27,7 @@ class AlarmService : Service() {
         const val ACTION_STOP = "com.smartlatam.notipagos_app.ACTION_STOP_ALARM"
         const val EXTRA_TITULO = "titulo"
         const val EXTRA_CUERPO = "cuerpo"
+        const val EXTRA_PAGO_ID = "pagoId"
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -37,7 +38,7 @@ class AlarmService : Service() {
 
         val titulo = intent?.getStringExtra(EXTRA_TITULO) ?: "🔔 Recordatorio de pago"
         val cuerpo = intent?.getStringExtra(EXTRA_CUERPO) ?: "Tienes un pago pendiente."
-        iniciarAlarma(titulo, cuerpo)
+        iniciarAlarma(titulo, cuerpo, intent?.getStringExtra(EXTRA_PAGO_ID))
         return START_STICKY
     }
 
@@ -54,7 +55,7 @@ class AlarmService : Service() {
         manager.createNotificationChannel(canal)
     }
 
-    private fun iniciarAlarma(titulo: String, cuerpo: String) {
+    private fun iniciarAlarma(titulo: String, cuerpo: String, pagoId: String?) {
         crearCanalSiHaceFalta()
         val stopIntent = Intent(this, AlarmService::class.java).apply { action = ACTION_STOP }
         val stopPendiente = PendingIntent.getService(
@@ -62,9 +63,17 @@ class AlarmService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val abrirAppPendiente = packageManager.getLaunchIntentForPackage(packageName)?.let {
-            PendingIntent.getActivity(this, 0, it, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        // Al tocar la notificacion se abre la app en la ficha de ese pago.
+        // SINGLE_TOP + CLEAR_TOP hacen que, si la app ya esta abierta, llegue
+        // por onNewIntent en vez de ignorarse.
+        val abrirApp = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            pagoId?.let { putExtra(EXTRA_PAGO_ID, it) }
         }
+        val abrirAppPendiente: PendingIntent? = PendingIntent.getActivity(
+            this, 0, abrirApp,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
 
         val notificacion = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(applicationInfo.icon)
@@ -76,6 +85,7 @@ class AlarmService : Service() {
             .setAutoCancel(false)
             .setOnlyAlertOnce(false)
             .setSound(null) // el sonido lo maneja el MediaPlayer de este servicio, no la notificacion
+            .setContentIntent(abrirAppPendiente)
             .apply { abrirAppPendiente?.let { setFullScreenIntent(it, true) } }
             .addAction(0, "🔕 Apagar", stopPendiente)
             .build()

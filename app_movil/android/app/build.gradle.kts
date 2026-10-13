@@ -74,6 +74,6 @@ dependencies {
     // Necesario para poder extender FirebaseMessagingService desde
     // NotiPagosMessagingService.kt (el plugin firebase_messaging no expone
     // esta clase al modulo de la app por si solo).
-    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    implementation(platform("com.google.firebase:firebase-bom:34.19.0"))
     implementation("com.google.firebase:firebase-messaging")
 }

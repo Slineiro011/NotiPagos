@@ -20,6 +20,7 @@ class NotiPagosMessagingService : FlutterFirebaseMessagingService() {
             val intent = Intent(this, AlarmService::class.java).apply {
                 putExtra(AlarmService.EXTRA_TITULO, datos["titulo"])
                 putExtra(AlarmService.EXTRA_CUERPO, datos["cuerpo"])
+                putExtra(AlarmService.EXTRA_PAGO_ID, datos["pagoId"])
             }
             startForegroundService(intent)
         }

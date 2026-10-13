@@ -10,18 +10,29 @@ const MethodChannel _canalAlarma = MethodChannel('com.smartlatam.notipagos_app/a
 /// Permite mostrar el dialogo de la alarma en iOS desde fuera de un widget.
 final GlobalKey<NavigatorState> navegadorGlobal = GlobalKey<NavigatorState>();
 
-Future<void> _iniciarAlarmaNativa({required String titulo, required String cuerpo}) async {
+Future<void> _iniciarAlarmaNativa({required String titulo, required String cuerpo, int? pagoId}) async {
   try {
-    await _canalAlarma.invokeMethod('iniciar', {'titulo': titulo, 'cuerpo': cuerpo});
+    await _canalAlarma.invokeMethod('iniciar', {
+      'titulo': titulo,
+      'cuerpo': cuerpo,
+      if (pagoId != null) 'pagoId': '$pagoId',
+    });
   } catch (_) {
     // Si falla (ej. plataforma no soportada), no interrumpe el resto de la app.
     return;
   }
-  // En Android el boton "Apagar" viene en la notificacion del AlarmService.
-  // En iOS no hay notificacion persistente con la app abierta, asi que se
-  // muestra un dialogo para apagar la alarma.
-  if (Platform.isIOS) _mostrarDialogoAlarma(titulo: titulo, cuerpo: cuerpo);
+  if (pagoId != null) {
+    // Con un pago real se abre su ficha (PagosScreen), que tambien apaga la alarma.
+    NotificacionesService.pagoPorAbrir.value = pagoId;
+  } else if (Platform.isIOS) {
+    // Prueba de alarma: en Android el boton "Apagar" viene en la notificacion
+    // del AlarmService; en iOS no hay notificacion persistente con la app
+    // abierta, asi que se muestra un dialogo para apagarla.
+    _mostrarDialogoAlarma(titulo: titulo, cuerpo: cuerpo);
+  }
 }
+
+int? _pagoIdDe(Object? valor) => valor == null ? null : int.tryParse('$valor');
 
 void _mostrarDialogoAlarma({required String titulo, required String cuerpo}) {
   final contexto = navegadorGlobal.currentContext;
@@ -58,6 +69,16 @@ Future<void> manejarMensajeSegundoPlano(RemoteMessage mensaje) async {}
 class NotificacionesService {
   static bool _inicializado = false;
 
+  /// Pago que hay que mostrarle al usuario porque toco su recordatorio (o
+  /// llego con la app abierta). Lo atiende PagosScreen y lo vuelve a null.
+  static final ValueNotifier<int?> pagoPorAbrir = ValueNotifier<int?>(null);
+
+  static Future<void> detenerAlarma() async {
+    try {
+      await _canalAlarma.invokeMethod('detener');
+    } catch (_) {}
+  }
+
   static Future<void> inicializar() async {
     if (_inicializado) return;
     _inicializado = true;
@@ -76,8 +97,30 @@ class NotificacionesService {
     FirebaseMessaging.onMessage.listen((mensaje) {
       final titulo = (mensaje.data['titulo'] as String?) ?? '🔔 Recordatorio de pago';
       final cuerpo = (mensaje.data['cuerpo'] as String?) ?? 'Tienes un pago pendiente.';
-      _iniciarAlarmaNativa(titulo: titulo, cuerpo: cuerpo);
+      _iniciarAlarmaNativa(titulo: titulo, cuerpo: cuerpo, pagoId: _pagoIdDe(mensaje.data['pagoId']));
     });
+
+    // iOS: el usuario toco el aviso del sistema (con la app en segundo plano
+    // o cerrada). En Android el aviso lo pinta el AlarmService nativo, que
+    // avisa por el canal (abajo).
+    FirebaseMessaging.onMessageOpenedApp.listen((mensaje) {
+      pagoPorAbrir.value = _pagoIdDe(mensaje.data['pagoId']);
+    });
+    // Con limite: en algunos casos (ej. simulador) esta llamada nunca responde.
+    final mensajeInicial = await mensajeria
+        .getInitialMessage()
+        .timeout(const Duration(seconds: 5), onTimeout: () => null);
+    if (mensajeInicial != null) pagoPorAbrir.value = _pagoIdDe(mensajeInicial.data['pagoId']);
+
+    if (Platform.isAndroid) {
+      _canalAlarma.setMethodCallHandler((llamada) async {
+        if (llamada.method == 'abrirPago') pagoPorAbrir.value = _pagoIdDe(llamada.arguments);
+      });
+      try {
+        // La app se abrio tocando la notificacion de la alarma.
+        pagoPorAbrir.value ??= _pagoIdDe(await _canalAlarma.invokeMethod<String>('pagoInicial'));
+      } catch (_) {}
+    }
 
     await _registrarToken();
     mensajeria.onTokenRefresh.listen((_) => _registrarToken());
