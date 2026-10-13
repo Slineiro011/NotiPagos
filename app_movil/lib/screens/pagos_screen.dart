@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../models/pago.dart';
 import '../services/api_service.dart';
+import '../widgets/cargando.dart';
 import '../widgets/pago_card.dart';
 import 'pago_form_screen.dart';
 
@@ -19,6 +21,8 @@ class _PagosScreenState extends State<PagosScreen> {
   List<Map<String, dynamic>> _usuarios = [];
   bool _esJefe = false;
   Future<List<Pago>>? _futurePagos;
+  final _busquedaCtrl = TextEditingController();
+  String _busqueda = '';
 
   final _filtros = const [
     ['pendientes', 'Pendientes'],
@@ -35,6 +39,12 @@ class _PagosScreenState extends State<PagosScreen> {
     _cargar();
     _cargarEmpresas();
     _cargarUsuarios();
+  }
+
+  @override
+  void dispose() {
+    _busquedaCtrl.dispose();
+    super.dispose();
   }
 
   void _cargar() {
@@ -82,7 +92,7 @@ class _PagosScreenState extends State<PagosScreen> {
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Marcar como pagado'),
+        title: const Text('Confirmar como pagado'),
         content: Text('¿Confirmas que "${pago.nombre}" ya se pagó?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
@@ -91,8 +101,7 @@ class _PagosScreenState extends State<PagosScreen> {
       ),
     );
     if (confirmar != true) return;
-    await ApiService.marcarPagado(pago.id);
-    _cargar();
+    await _ejecutar(() => ApiService.marcarPagado(pago.id), exito: '"${pago.nombre}" marcado como pagado ✔');
   }
 
   Future<void> _eliminar(Pago pago) async {
@@ -112,9 +121,44 @@ class _PagosScreenState extends State<PagosScreen> {
       ),
     );
     if (confirmar != true) return;
-    await ApiService.eliminarPago(pago.id);
+    await _ejecutar(() => ApiService.eliminarPago(pago.id), exito: '"${pago.nombre}" eliminado');
+  }
+
+  /// Ejecuta una accion sobre un pago y avisa si salio bien o mal; antes, un
+  /// fallo de red pasaba en silencio y parecia que la accion habia funcionado.
+  Future<void> _ejecutar(Future<void> Function() accion, {required String exito}) async {
+    final mensajero = ScaffoldMessenger.of(context);
+    try {
+      await accion();
+      mensajero.showSnackBar(SnackBar(content: Text(exito)));
+    } catch (e) {
+      mensajero.showSnackBar(SnackBar(content: Text(mensajeError(e))));
+    }
     _cargar();
   }
+
+  /// Sin tildes y en minusculas, para que "poliza" encuentre "Póliza".
+  static String _normalizar(String texto) {
+    const conTilde = 'áéíóúüñ';
+    const sinTilde = 'aeiouun';
+    final minus = texto.toLowerCase();
+    final buffer = StringBuffer();
+    for (final letra in minus.split('')) {
+      final i = conTilde.indexOf(letra);
+      buffer.write(i >= 0 ? sinTilde[i] : letra);
+    }
+    return buffer.toString();
+  }
+
+  List<Pago> _filtrarPorBusqueda(List<Pago> pagos) {
+    final termino = _normalizar(_busqueda.trim());
+    if (termino.isEmpty) return pagos;
+    return pagos
+        .where((p) => _normalizar('${p.nombre} ${p.empresa} ${p.categoria} ${p.notas}').contains(termino))
+        .toList();
+  }
+
+  String get _etiquetaFiltro => _filtros.firstWhere((f) => f[0] == _filtro, orElse: () => ['', 'Todos'])[1];
 
   @override
   Widget build(BuildContext context) {
@@ -143,6 +187,30 @@ class _PagosScreenState extends State<PagosScreen> {
                   );
                 },
               ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+            child: TextField(
+              controller: _busquedaCtrl,
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                hintText: 'Buscar por nombre, empresa o categoría',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _busqueda.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.clear),
+                        tooltip: 'Limpiar búsqueda',
+                        onPressed: () {
+                          _busquedaCtrl.clear();
+                          setState(() => _busqueda = '');
+                        },
+                      ),
+                border: const OutlineInputBorder(),
+                isDense: true,
+              ),
+              onChanged: (v) => setState(() => _busqueda = v),
             ),
           ),
           if (_empresas.isNotEmpty)
@@ -202,25 +270,25 @@ class _PagosScreenState extends State<PagosScreen> {
                 future: _futurePagos,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
+                    return const Cargando();
                   }
                   if (snapshot.hasError) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text('No se pudo cargar: ${snapshot.error}', textAlign: TextAlign.center),
-                      ),
-                    );
+                    return _mensajeCentrado('No se pudo cargar: ${mensajeError(snapshot.error!)}');
                   }
-                  final pagos = snapshot.data ?? [];
+                  final todos = snapshot.data ?? [];
+                  if (todos.isEmpty) {
+                    return _mensajeCentrado('No hay pagos para este filtro.');
+                  }
+                  final pagos = _filtrarPorBusqueda(todos);
                   if (pagos.isEmpty) {
-                    return const Center(child: Text('No hay pagos para este filtro.'));
+                    return _mensajeCentrado('Ningún pago coincide con "${_busqueda.trim()}".');
                   }
                   return ListView.builder(
                     padding: const EdgeInsets.only(top: 6, bottom: 80),
-                    itemCount: pagos.length,
+                    itemCount: pagos.length + 1,
                     itemBuilder: (context, i) {
-                      final pago = pagos[i];
+                      if (i == 0) return _ResumenPagos(titulo: _etiquetaFiltro, pagos: pagos);
+                      final pago = pagos[i - 1];
                       return PagoCard(
                         pago: pago,
                         onTap: () => _abrirFormulario(pago: pago),
@@ -239,6 +307,64 @@ class _PagosScreenState extends State<PagosScreen> {
         onPressed: () => _abrirFormulario(),
         icon: const Icon(Icons.add),
         label: const Text('Nuevo pago'),
+      ),
+    );
+  }
+
+  /// Dentro de un ListView para que se pueda jalar hacia abajo y reintentar.
+  Widget _mensajeCentrado(String texto) {
+    return ListView(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 80, 24, 24),
+          child: Text(texto, textAlign: TextAlign.center),
+        ),
+      ],
+    );
+  }
+}
+
+final _formatoMoneda = NumberFormat.decimalPattern('es_CO');
+
+/// Totales de lo que se esta viendo (filtro + busqueda): cantidad, monto y
+/// cuantos estan vencidos.
+class _ResumenPagos extends StatelessWidget {
+  final String titulo;
+  final List<Pago> pagos;
+
+  const _ResumenPagos({required this.titulo, required this.pagos});
+
+  @override
+  Widget build(BuildContext context) {
+    final total = pagos.fold<double>(0, (suma, p) => suma + p.monto);
+    final vencidos = pagos.where((p) => p.estado == 'pendiente' && p.diasRestantes < 0).length;
+    final colores = Theme.of(context).colorScheme;
+    return Card(
+      margin: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+      color: colores.primaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(titulo, style: TextStyle(color: colores.onPrimaryContainer, fontSize: 12.5)),
+            const SizedBox(height: 2),
+            Text(
+              '\$${_formatoMoneda.format(total)}',
+              style: TextStyle(color: colores.onPrimaryContainer, fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '${pagos.length} ${pagos.length == 1 ? 'pago' : 'pagos'}'
+              '${vencidos > 0 ? ' · $vencidos ${vencidos == 1 ? 'vencido' : 'vencidos'}' : ''}',
+              style: TextStyle(
+                color: vencidos > 0 ? const Color(0xFFDC2626) : colores.onPrimaryContainer,
+                fontSize: 13,
+                fontWeight: vencidos > 0 ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

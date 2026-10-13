@@ -1,6 +1,8 @@
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/notificaciones_service.dart';
+import '../widgets/cargando.dart';
 
 class ConfiguracionScreen extends StatefulWidget {
   final VoidCallback onSalir;
@@ -91,7 +93,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al guardar: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al guardar: ${mensajeError(e)}')));
       }
     } finally {
       if (mounted) setState(() => _guardandoNombre = false);
@@ -125,7 +127,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al guardar: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al guardar: ${mensajeError(e)}')));
       }
     } finally {
       if (mounted) setState(() => _guardandoUsuario = false);
@@ -141,7 +143,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al guardar: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al guardar: ${mensajeError(e)}')));
       }
     } finally {
       if (mounted) setState(() => _guardandoTelefono = false);
@@ -162,7 +164,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al cambiar la contraseña: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al cambiar la contraseña: ${mensajeError(e)}')));
       }
     } finally {
       if (mounted) setState(() => _guardandoPassword = false);
@@ -189,7 +191,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al guardar: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al guardar: ${mensajeError(e)}')));
       }
     } finally {
       if (mounted) setState(() => _guardando = false);
@@ -208,7 +210,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
   @override
   Widget build(BuildContext context) {
     if (_cargando) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(body: Cargando());
     }
     return Scaffold(
       body: ListView(
@@ -298,8 +300,12 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
             hijo: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Los recordatorios de pago suenan fuerte, como una alarma, y no paran hasta que los apagues (aunque el celular este en silencio). Pruébala para saber cómo se ve y se escucha cuando suene de verdad.',
+                Text(
+                  Platform.isIOS
+                      // En iOS el sonido del aviso push dura maximo ~30 s y
+                      // respeta el modo silencio (salvo con Critical Alerts).
+                      ? 'Los recordatorios de pago suenan como una alarma durante unos 30 segundos y atraviesan los modos de concentración. Si el iPhone está en silencio solo vibra. Con la app abierta, suenan hasta que los apagues. Pruébala para saber cómo se ve y se escucha.'
+                      : 'Los recordatorios de pago suenan fuerte, como una alarma, y no paran hasta que los apagues (aunque el celular esté en silencio). Pruébala para saber cómo se ve y se escucha cuando suene de verdad.',
                   style: TextStyle(color: Colors.grey, fontSize: 12.5),
                 ),
                 const SizedBox(height: 10),

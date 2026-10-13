@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -10,6 +11,29 @@ const String _clavePrefToken = 'auth_token';
 const String _clavePrefNombre = 'auth_nombre';
 const String _clavePrefRol = 'auth_rol';
 const String _clavePrefUsuario = 'auth_usuario';
+
+/// Texto listo para mostrarle al usuario a partir de cualquier error.
+String mensajeError(Object error) => error.toString().replaceFirst('Exception: ', '');
+
+/// Cliente HTTP con tiempo limite y errores de red en lenguaje claro. El
+/// limite es amplio porque Render (plan gratis) puede tardar ~50 s en
+/// despertar el servidor la primera vez.
+class _ClienteNotiPagos extends http.BaseClient {
+  final http.Client _interno = http.Client();
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    try {
+      return await _interno.send(request).timeout(const Duration(seconds: 75));
+    } on TimeoutException {
+      throw Exception('El servidor tardó demasiado en responder. Intenta de nuevo.');
+    } on http.ClientException {
+      throw Exception('No hay conexión con el servidor. Revisa tu internet e intenta de nuevo.');
+    }
+  }
+}
+
+final _cliente = _ClienteNotiPagos();
 
 /// Se llama cuando el servidor responde 401 (sesion invalida/expirada), para
 /// que la app pueda volver a mostrar la pantalla de login.
@@ -58,15 +82,13 @@ class ApiService {
   }
 
   static Future<void> login(String usuario, String password) async {
-    final res = await http.post(
+    final res = await _cliente.post(
       await _uri('/auth/login'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'usuario': usuario, 'password': password}),
     );
+    if (res.statusCode != 200) throw Exception(_mensajeDe(res, 'No se pudo iniciar sesión'));
     final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
-    if (res.statusCode != 200) {
-      throw Exception(data['error'] ?? 'No se pudo iniciar sesión');
-    }
     await _setToken(data['token'] as String);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_clavePrefNombre, (data['nombre'] ?? data['usuario'] ?? '') as String);
@@ -92,7 +114,7 @@ class ApiService {
   static Future<bool> esJefe() async => (await getRol()) == 'jefe';
 
   static Future<Map<String, dynamic>> getPerfil() async {
-    final res = await http.get(await _uri('/auth/perfil'), headers: await _headers());
+    final res = await _cliente.get(await _uri('/auth/perfil'), headers: await _headers());
     _verificar(res);
     return jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
   }
@@ -106,7 +128,7 @@ class ApiService {
     if (usuario != null) cambios['usuario'] = usuario;
     if (telefono != null) cambios['telefono'] = telefono;
     if (password != null && password.isNotEmpty) cambios['password'] = password;
-    final res = await http.put(
+    final res = await _cliente.put(
       await _uri('/auth/perfil'),
       headers: await _headers(),
       body: jsonEncode(cambios),
@@ -140,8 +162,19 @@ class ApiService {
       throw Exception('Sesión expirada, vuelve a iniciar sesión.');
     }
     if (res.statusCode < 200 || res.statusCode >= 300) {
-      throw Exception('Error del servidor (${res.statusCode}): ${res.body}');
+      throw Exception(_mensajeDe(res, 'No se pudo completar la operación'));
     }
+  }
+
+  /// Usa el campo "error" que manda el servidor; si no viene (o la respuesta
+  /// no es JSON), un mensaje generico segun el tipo de fallo.
+  static String _mensajeDe(http.Response res, String porDefecto) {
+    try {
+      final data = jsonDecode(utf8.decode(res.bodyBytes));
+      if (data is Map && data['error'] is String) return data['error'] as String;
+    } catch (_) {}
+    if (res.statusCode >= 500) return 'El servidor tuvo un problema. Intenta de nuevo en un momento.';
+    return porDefecto;
   }
 
   // ---------- Pagos ----------
@@ -152,14 +185,14 @@ class ApiService {
       if (empresa != null && empresa.isNotEmpty) 'empresa': empresa,
       if (usuario != null && usuario.isNotEmpty) 'usuario': usuario,
     };
-    final res = await http.get(await _uri('/pagos', query), headers: await _headers());
+    final res = await _cliente.get(await _uri('/pagos', query), headers: await _headers());
     _verificar(res);
     final lista = jsonDecode(utf8.decode(res.bodyBytes)) as List;
     return lista.map((e) => Pago.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   static Future<List<Map<String, dynamic>>> getUsuarios() async {
-    final res = await http.get(await _uri('/usuarios'), headers: await _headers());
+    final res = await _cliente.get(await _uri('/usuarios'), headers: await _headers());
     _verificar(res);
     final lista = jsonDecode(utf8.decode(res.bodyBytes)) as List;
     return lista.cast<Map<String, dynamic>>();
@@ -172,16 +205,13 @@ class ApiService {
     required String rol,
     String? telefono,
   }) async {
-    final res = await http.post(
+    final res = await _cliente.post(
       await _uri('/usuarios'),
       headers: await _headers(),
       body: jsonEncode({'usuario': usuario, 'password': password, 'nombre': nombre, 'rol': rol, 'telefono': telefono}),
     );
     if (res.statusCode == 401) return _verificar(res);
-    if (res.statusCode < 200 || res.statusCode >= 300) {
-      final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
-      throw Exception(data['error'] ?? 'No se pudo crear el usuario');
-    }
+    if (res.statusCode < 200 || res.statusCode >= 300) throw Exception(_mensajeDe(res, 'No se pudo crear el usuario'));
   }
 
   static Future<void> actualizarUsuario(
@@ -193,67 +223,61 @@ class ApiService {
   }) async {
     final cambios = <String, dynamic>{'nombre': nombre, 'rol': rol, 'telefono': telefono};
     if (password != null && password.isNotEmpty) cambios['password'] = password;
-    final res = await http.put(
+    final res = await _cliente.put(
       await _uri('/usuarios/${Uri.encodeComponent(usuarioOriginal)}'),
       headers: await _headers(),
       body: jsonEncode(cambios),
     );
     if (res.statusCode == 401) return _verificar(res);
-    if (res.statusCode < 200 || res.statusCode >= 300) {
-      final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
-      throw Exception(data['error'] ?? 'No se pudo actualizar el usuario');
-    }
+    if (res.statusCode < 200 || res.statusCode >= 300) throw Exception(_mensajeDe(res, 'No se pudo actualizar el usuario'));
   }
 
   static Future<void> eliminarUsuario(String usuario) async {
-    final res = await http.delete(await _uri('/usuarios/${Uri.encodeComponent(usuario)}'), headers: await _headers());
+    final res = await _cliente.delete(await _uri('/usuarios/${Uri.encodeComponent(usuario)}'), headers: await _headers());
     if (res.statusCode == 401) return _verificar(res);
-    if (res.statusCode < 200 || res.statusCode >= 300) {
-      final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
-      throw Exception(data['error'] ?? 'No se pudo eliminar el usuario');
-    }
+    if (res.statusCode < 200 || res.statusCode >= 300) throw Exception(_mensajeDe(res, 'No se pudo eliminar el usuario'));
   }
 
   static Future<List<String>> getEmpresas() async {
-    final res = await http.get(await _uri('/pagos/empresas/lista'), headers: await _headers());
+    final res = await _cliente.get(await _uri('/pagos/empresas/lista'), headers: await _headers());
     _verificar(res);
     final lista = jsonDecode(utf8.decode(res.bodyBytes)) as List;
     return lista.map((e) => e.toString()).toList();
   }
 
   static Future<List<Map<String, dynamic>>> getHistorial() async {
-    final res = await http.get(await _uri('/pagos/historial'), headers: await _headers());
+    final res = await _cliente.get(await _uri('/pagos/historial'), headers: await _headers());
     _verificar(res);
     final lista = jsonDecode(utf8.decode(res.bodyBytes)) as List;
     return lista.cast<Map<String, dynamic>>();
   }
 
   static Future<Pago> crearPago(Pago pago) async {
-    final res = await http.post(await _uri('/pagos'), headers: await _headers(), body: jsonEncode(pago.toJson()));
+    final res = await _cliente.post(await _uri('/pagos'), headers: await _headers(), body: jsonEncode(pago.toJson()));
     _verificar(res);
     return Pago.fromJson(jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
   }
 
   static Future<Pago> actualizarPago(int id, Pago pago) async {
-    final res = await http.put(await _uri('/pagos/$id'), headers: await _headers(), body: jsonEncode(pago.toJson()));
+    final res = await _cliente.put(await _uri('/pagos/$id'), headers: await _headers(), body: jsonEncode(pago.toJson()));
     _verificar(res);
     return Pago.fromJson(jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
   }
 
   static Future<void> marcarPagado(int id) async {
-    final res = await http.post(await _uri('/pagos/$id/pagado'), headers: await _headers());
+    final res = await _cliente.post(await _uri('/pagos/$id/pagado'), headers: await _headers());
     _verificar(res);
   }
 
   static Future<void> eliminarPago(int id) async {
-    final res = await http.delete(await _uri('/pagos/$id'), headers: await _headers());
+    final res = await _cliente.delete(await _uri('/pagos/$id'), headers: await _headers());
     _verificar(res);
   }
 
   // ---------- Configuracion ----------
 
   static Future<Map<String, dynamic>> getConfiguracion() async {
-    final res = await http.get(await _uri('/configuracion'), headers: await _headers());
+    final res = await _cliente.get(await _uri('/configuracion'), headers: await _headers());
     _verificar(res);
     return jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
   }
@@ -262,14 +286,14 @@ class ApiService {
     final body = <String, dynamic>{};
     if (numerosWhatsapp != null) body['numeros_whatsapp'] = numerosWhatsapp;
     if (horaRecordatorio != null) body['hora_recordatorio'] = horaRecordatorio;
-    final res = await http.put(await _uri('/configuracion'), headers: await _headers(), body: jsonEncode(body));
+    final res = await _cliente.put(await _uri('/configuracion'), headers: await _headers(), body: jsonEncode(body));
     _verificar(res);
   }
 
   // ---------- Dispositivos (para push notifications) ----------
 
   static Future<void> registrarDispositivo(String token, {String plataforma = 'android'}) async {
-    final res = await http.post(
+    final res = await _cliente.post(
       await _uri('/dispositivos'),
       headers: await _headers(),
       body: jsonEncode({'token': token, 'plataforma': plataforma}),

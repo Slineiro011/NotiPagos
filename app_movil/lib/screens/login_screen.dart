@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../widgets/cargando.dart';
 
 class LoginScreen extends StatefulWidget {
   final VoidCallback onLoginExitoso;
@@ -32,7 +33,7 @@ class _LoginScreenState extends State<LoginScreen> {
       await ApiService.login(_usuarioCtrl.text.trim(), _passwordCtrl.text);
       widget.onLoginExitoso();
     } catch (e) {
-      setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+      setState(() => _error = mensajeError(e));
     } finally {
       if (mounted) setState(() => _cargando = false);
     }
@@ -75,6 +76,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
                       : const Text('Entrar'),
                 ),
+                if (_cargando) ...[
+                  const SizedBox(height: 16),
+                  const AvisoServidorLento(),
+                ],
               ],
             ),
           ),

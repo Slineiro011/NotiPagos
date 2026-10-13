@@ -65,6 +65,15 @@ class Pago {
   }
 }
 
+/// Interpreta un monto escrito al estilo colombiano: el punto separa miles y
+/// la coma los decimales ("850.000,50" -> 850000.5). Vacio cuenta como 0;
+/// devuelve null si el texto no es un numero valido.
+double? parsearMonto(String texto) {
+  final limpio = texto.trim().replaceAll(r'$', '').replaceAll(' ', '');
+  if (limpio.isEmpty) return 0;
+  return double.tryParse(limpio.replaceAll('.', '').replaceAll(',', '.'));
+}
+
 const List<String> categoriasDisponibles = [
   'SOAT',
   'Póliza',

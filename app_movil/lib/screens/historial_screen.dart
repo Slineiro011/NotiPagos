@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
+import '../widgets/cargando.dart';
 
 final _formatoMoneda = NumberFormat.decimalPattern('es_CO');
 
@@ -34,10 +35,10 @@ class _HistorialScreenState extends State<HistorialScreen> {
           future: _future,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
+              return const Cargando();
             }
             if (snapshot.hasError) {
-              return Center(child: Text('No se pudo cargar: ${snapshot.error}'));
+              return Center(child: Text('No se pudo cargar: ${mensajeError(snapshot.error!)}', textAlign: TextAlign.center));
             }
             final historial = snapshot.data ?? [];
             if (historial.isEmpty) {

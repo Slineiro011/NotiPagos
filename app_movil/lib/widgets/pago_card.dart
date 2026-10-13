@@ -82,14 +82,16 @@ class PagoCard extends StatelessWidget {
                 style: TextStyle(color: Colors.grey.shade600, fontSize: 12.5),
               ),
               const SizedBox(height: 10),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+              // Wrap en vez de Row: en pantallas angostas los botones bajan de
+              // linea en vez de desbordarse.
+              Wrap(
+                alignment: WrapAlignment.end,
                 children: [
                   if (onMarcarPagado != null)
                     TextButton.icon(
                       onPressed: onMarcarPagado,
                       icon: const Icon(Icons.check_circle_outline, size: 18, color: Color(0xFF16A34A)),
-                      label: const Text('Pagado', style: TextStyle(color: Color(0xFF16A34A))),
+                      label: const Text('Confirmar como pagado', style: TextStyle(color: Color(0xFF16A34A))),
                     ),
                   TextButton.icon(
                     onPressed: onEliminar,

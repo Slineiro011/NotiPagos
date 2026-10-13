@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../models/pago.dart';
 import '../services/api_service.dart';
 
@@ -32,7 +33,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
     final p = widget.pago;
     _empresaCtrl = TextEditingController(text: p?.empresa ?? '');
     _nombreCtrl = TextEditingController(text: p?.nombre ?? '');
-    _montoCtrl = TextEditingController(text: p != null ? p.monto.toStringAsFixed(0) : '');
+    _montoCtrl = TextEditingController(text: p != null ? NumberFormat.decimalPattern('es_CO').format(p.monto) : '');
     _diasAvisoCtrl = TextEditingController(text: (p?.diasAviso ?? 3).toString());
     _notasCtrl = TextEditingController(text: p?.notas ?? '');
     _categoria = p?.categoria ?? categoriasDisponibles.first;
@@ -72,7 +73,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
         empresa: _empresaCtrl.text.trim(),
         nombre: _nombreCtrl.text.trim(),
         categoria: _categoria,
-        monto: double.tryParse(_montoCtrl.text.replaceAll('.', '').replaceAll(',', '')) ?? 0,
+        monto: parsearMonto(_montoCtrl.text) ?? 0,
         fechaVencimiento: _fechaFormateada,
         recurrencia: _recurrencia,
         diasAviso: int.tryParse(_diasAvisoCtrl.text) ?? 3,
@@ -89,7 +90,7 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al guardar: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al guardar: ${mensajeError(e)}')));
       }
     } finally {
       if (mounted) setState(() => _guardando = false);
@@ -143,8 +144,13 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
             const SizedBox(height: 14),
             TextFormField(
               controller: _montoCtrl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Monto (COP)', border: OutlineInputBorder()),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Monto (COP)',
+                hintText: 'Ej: 850.000 o 850.000,50',
+                border: OutlineInputBorder(),
+              ),
+              validator: (v) => parsearMonto(v ?? '') == null ? 'Monto inválido' : null,
             ),
             const SizedBox(height: 14),
             InkWell(

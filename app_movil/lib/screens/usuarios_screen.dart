@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../widgets/cargando.dart';
 
 class UsuariosScreen extends StatefulWidget {
   const UsuariosScreen({super.key});
@@ -55,7 +56,7 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
       _recargar();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${mensajeError(e)}')));
       }
     }
   }
@@ -67,10 +68,10 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Cargando();
           }
           if (snapshot.hasError) {
-            return Center(child: Text('No se pudo cargar: ${snapshot.error}'));
+            return Center(child: Text('No se pudo cargar: ${mensajeError(snapshot.error!)}', textAlign: TextAlign.center));
           }
           final usuarios = snapshot.data ?? [];
           if (usuarios.isEmpty) {
@@ -234,7 +235,7 @@ class _UsuarioFormDialogState extends State<_UsuarioFormDialog> {
       }
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
-      setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+      setState(() => _error = mensajeError(e));
     } finally {
       if (mounted) setState(() => _guardando = false);
     }
