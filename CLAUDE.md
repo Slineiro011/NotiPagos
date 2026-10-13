@@ -20,10 +20,9 @@ Responder siempre en español.
 - En Xcode 27 el simulador se abre con la app DeviceHub.
 - Pendiente: cuenta Apple Developer, clave APNs en Firebase, TestFlight.
 
-## Pendiente de probar en Android (no se pudo compilar en la Mac)
-- Actualización a firebase_core 4 / firebase_messaging 16 y Firebase BoM 34.19.0.
-- Tocar la notificación de la alarma abre el pago (cambios en `AlarmService.kt`, `MainActivity.kt`, `NotiPagosMessagingService.kt`).
-- Deshacer, búsqueda, resumen, montos con formato colombiano: código Dart compartido, probado solo en iOS.
+## Toolchain Android
+- Requiere Flutter 3.38+ (el código usa `persist` de `SnackBar`, que no existe antes). Eso arrastra Gradle 8.14+, AGP 8.12.3+ y Kotlin 2.2.20+ — si una PC tiene un Flutter más viejo, `flutter upgrade` primero y luego subir esas tres versiones en `android/` (settings.gradle.kts y gradle-wrapper.properties) o la build falla pidiéndolas una por una.
+- Ya probado end-to-end en Android (emulador): firebase_core 4 / firebase_messaging 16 / BoM 34.19.0 compilan bien; tocar la notificación de la alarma abre el pago correcto; deshacer, búsqueda, resumen y formato colombiano de montos funcionan.
 
 ## Ideas siguientes
 Fechas legibles y puntos de miles al escribir el monto; sesión en almacenamiento cifrado; ocultar el campo "servidor" a no-jefes; modo oscuro; filtros y totales en Historial; foto del comprobante y monto real pagado (requieren cambios en el servidor).
