@@ -15,16 +15,14 @@ const String _clavePrefUsuario = 'auth_usuario';
 /// Texto listo para mostrarle al usuario a partir de cualquier error.
 String mensajeError(Object error) => error.toString().replaceFirst('Exception: ', '');
 
-/// Cliente HTTP con tiempo limite y errores de red en lenguaje claro. El
-/// limite es amplio porque Render (plan gratis) puede tardar ~50 s en
-/// despertar el servidor la primera vez.
+/// Cliente HTTP con tiempo limite y errores de red en lenguaje claro.
 class _ClienteNotiPagos extends http.BaseClient {
   final http.Client _interno = http.Client();
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     try {
-      return await _interno.send(request).timeout(const Duration(seconds: 75));
+      return await _interno.send(request).timeout(const Duration(seconds: 30));
     } on TimeoutException {
       throw Exception('El servidor tardó demasiado en responder. Intenta de nuevo.');
     } on http.ClientException {

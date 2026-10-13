@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 
-/// Indicador de carga que, si la espera pasa de unos segundos, explica que el
-/// servidor puede estar despertando (Render plan gratis tarda ~50 s).
+/// Indicador de carga que, si la espera pasa de unos segundos, avisa que la
+/// conexion esta lenta para que no parezca que la app se congelo.
 class Cargando extends StatelessWidget {
   const Cargando({super.key});
 
@@ -24,7 +24,7 @@ class Cargando extends StatelessWidget {
   }
 }
 
-/// No muestra nada los primeros segundos; despues, el aviso de servidor lento.
+/// No muestra nada los primeros segundos; despues, el aviso de conexion lenta.
 class AvisoServidorLento extends StatefulWidget {
   const AvisoServidorLento({super.key});
 
@@ -54,7 +54,7 @@ class _AvisoServidorLentoState extends State<AvisoServidorLento> {
   Widget build(BuildContext context) {
     if (!_visible) return const SizedBox.shrink();
     return Text(
-      'Conectando con el servidor…\nSi no se ha usado en un rato puede tardar hasta un minuto.',
+      'Conectando con el servidor…\nLa conexión está lenta, espera un momento.',
       textAlign: TextAlign.center,
       style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
     );
