@@ -15,7 +15,7 @@ class PagosScreen extends StatefulWidget {
 }
 
 class _PagosScreenState extends State<PagosScreen> {
-  String _filtro = '';
+  String _filtro = 'mes';
   String? _empresaFiltro;
   String? _usuarioFiltro;
   List<String> _empresas = [];

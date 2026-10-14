@@ -128,7 +128,7 @@ function estadoVisual(pago) {
 }
 
 // ---------- Listado de pagos ----------
-let filtroActual = "";
+let filtroActual = "mes";
 let empresaActual = "";
 let usuarioFiltroActual = "";
 
