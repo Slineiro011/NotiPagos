@@ -4,6 +4,45 @@ import '../models/pago.dart';
 
 final _formatoMoneda = NumberFormat.decimalPattern('es_CO');
 
+const _meses = [
+  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+];
+
+/// "2026-11-03" -> "Noviembre 2026". Nombres fijos en vez de intl.DateFormat
+/// para no depender de inicializar datos de localizacion.
+String etiquetaMes(String fechaIso) {
+  final partes = fechaIso.split('-');
+  final anio = partes[0];
+  final mes = int.parse(partes[1]);
+  final nombre = _meses[mes - 1];
+  return '${nombre[0].toUpperCase()}${nombre.substring(1)} $anio';
+}
+
+/// Encabezado de seccion ("Noviembre 2026") para separar visualmente los
+/// pagos por mes dentro de una lista larga.
+class EncabezadoMes extends StatelessWidget {
+  final String texto;
+
+  const EncabezadoMes(this.texto, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 2),
+      child: Text(
+        texto.toUpperCase(),
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.4,
+          color: Colors.grey.shade600,
+        ),
+      ),
+    );
+  }
+}
+
 class EstadoVisual {
   final String texto;
   final Color color;

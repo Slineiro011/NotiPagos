@@ -169,6 +169,18 @@ async function cargarUsuariosFiltro() {
   selectFiltro.value = valorPrevio;
 }
 
+const MESES = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+];
+
+/** "2026-11-03" -> "Noviembre 2026" (clave de agrupacion: "2026-11"). */
+function mesDe(fechaIso) {
+  const [anio, mes] = fechaIso.split("-");
+  const nombre = MESES[Number(mes) - 1];
+  return { clave: `${anio}-${mes}`, etiqueta: `${nombre[0].toUpperCase()}${nombre.slice(1)} ${anio}` };
+}
+
 async function cargarPagos() {
   const params = new URLSearchParams({ filtro: filtroActual });
   if (empresaActual) params.set("empresa", empresaActual);
@@ -183,7 +195,19 @@ async function cargarPagos() {
     return;
   }
 
+  // Agrupados por mes de vencimiento (ya vienen ordenados por fecha desde el
+  // servidor), para que no se vea "revuelto" cuando hay pagos de meses muy
+  // distintos mezclados en la misma lista (ej. recurrentes a futuro).
+  let claveActual = null;
   for (const pago of pagos) {
+    const { clave, etiqueta } = mesDe(pago.fecha_vencimiento);
+    if (clave !== claveActual) {
+      claveActual = clave;
+      const encabezado = document.createElement("div");
+      encabezado.className = "mes-encabezado";
+      encabezado.textContent = etiqueta;
+      contenedor.appendChild(encabezado);
+    }
     contenedor.appendChild(crearTarjetaPago(pago));
   }
 }
@@ -287,14 +311,24 @@ async function cargarHistorial() {
     return;
   }
 
+  let claveActual = null;
   for (const h of historial) {
+    const { clave, etiqueta } = mesDe(h.fecha_pago);
+    if (clave !== claveActual) {
+      claveActual = clave;
+      const encabezado = document.createElement("div");
+      encabezado.className = "mes-encabezado";
+      encabezado.textContent = etiqueta;
+      contenedor.appendChild(encabezado);
+    }
+
     const div = document.createElement("div");
     div.className = "pago-card";
     const creador = h.creado_por_nombre || h.creado_por;
     div.innerHTML = `
       <div class="pago-info">
         <span class="pago-nombre">${h.nombre}</span>
-        <div class="pago-meta">🏢 ${h.empresa} · ${h.categoria} · $${formatMoneda(h.monto)} · pagado el ${h.fecha_pago}${creador ? ` · 👤 ${creador}` : ""}</div>
+        <div class="pago-meta">🏢 ${h.empresa} · ${h.categoria} · $${formatMoneda(h.monto)} · pagado el ${h.fecha_pago.slice(0, 10)}${creador ? ` · 👤 ${creador}` : ""}</div>
       </div>
     `;
     contenedor.appendChild(div);

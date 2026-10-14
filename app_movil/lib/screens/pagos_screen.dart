@@ -261,6 +261,24 @@ class _PagosScreenState extends State<PagosScreen> {
 
   String get _etiquetaFiltro => _filtros.firstWhere((f) => f[0] == _filtro, orElse: () => ['', 'Todos'])[1];
 
+  /// Intercala encabezados de mes ("Noviembre 2026") entre los pagos, para
+  /// que no se vea "revuelto" cuando hay pagos de meses muy distintos
+  /// mezclados en la misma lista (ej. recurrentes programados a futuro).
+  /// Los pagos ya llegan ordenados por fecha_vencimiento desde el servidor.
+  List<Object> _agruparPorMes(List<Pago> pagos) {
+    final items = <Object>[];
+    String? claveActual;
+    for (final pago in pagos) {
+      final clave = pago.fechaVencimiento.substring(0, 7); // "2026-11"
+      if (clave != claveActual) {
+        claveActual = clave;
+        items.add(etiquetaMes(pago.fechaVencimiento));
+      }
+      items.add(pago);
+    }
+    return items;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -384,12 +402,15 @@ class _PagosScreenState extends State<PagosScreen> {
                   if (pagos.isEmpty) {
                     return _mensajeCentrado('Ningún pago coincide con "${_busqueda.trim()}".');
                   }
+                  final items = _agruparPorMes(pagos);
                   return ListView.builder(
                     padding: const EdgeInsets.only(top: 6, bottom: 80),
-                    itemCount: pagos.length + 1,
+                    itemCount: items.length + 1,
                     itemBuilder: (context, i) {
                       if (i == 0) return _ResumenPagos(titulo: _etiquetaFiltro, pagos: pagos);
-                      final pago = pagos[i - 1];
+                      final item = items[i - 1];
+                      if (item is String) return EncabezadoMes(item);
+                      final pago = item as Pago;
                       return PagoCard(
                         pago: pago,
                         onTap: () => _abrirFormulario(pago: pago),

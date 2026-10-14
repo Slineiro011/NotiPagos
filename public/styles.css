@@ -104,6 +104,16 @@ main { padding: 24px; max-width: 960px; margin: 0 auto; }
 
 .lista-pagos { display: flex; flex-direction: column; gap: 10px; }
 
+.mes-encabezado {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  padding: 14px 2px 2px;
+}
+.mes-encabezado:first-child { padding-top: 2px; }
+
 .pago-card {
   background: var(--card);
   border: 1px solid var(--border);

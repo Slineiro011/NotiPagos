@@ -136,9 +136,13 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
             DropdownButtonFormField<String>(
               initialValue: _categoria,
               decoration: const InputDecoration(labelText: 'Categoría', border: OutlineInputBorder()),
-              items: categoriasDisponibles
-                  .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                  .toList(),
+              // Si el pago ya tenia una categoria que no esta en la lista fija
+              // (ej. datos antiguos, creados por API o por el bot), se agrega
+              // igual como opcion en vez de hacer crashear el formulario.
+              items: [
+                if (!categoriasDisponibles.contains(_categoria)) _categoria,
+                ...categoriasDisponibles,
+              ].map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
               onChanged: (v) => setState(() => _categoria = v ?? _categoria),
             ),
             const SizedBox(height: 14),
@@ -164,9 +168,10 @@ class _PagoFormScreenState extends State<PagoFormScreen> {
             DropdownButtonFormField<String>(
               initialValue: _recurrencia,
               decoration: const InputDecoration(labelText: 'Recurrencia', border: OutlineInputBorder()),
-              items: recurrenciasDisponibles
-                  .map((r) => DropdownMenuItem(value: r, child: Text(r == 'ninguna' ? 'No se repite' : r)))
-                  .toList(),
+              items: [
+                if (!recurrenciasDisponibles.contains(_recurrencia)) _recurrencia,
+                ...recurrenciasDisponibles,
+              ].map((r) => DropdownMenuItem(value: r, child: Text(r == 'ninguna' ? 'No se repite' : r))).toList(),
               onChanged: (v) => setState(() => _recurrencia = v ?? _recurrencia),
             ),
             const SizedBox(height: 14),
