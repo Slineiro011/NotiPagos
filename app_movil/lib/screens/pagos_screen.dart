@@ -15,7 +15,7 @@ class PagosScreen extends StatefulWidget {
 }
 
 class _PagosScreenState extends State<PagosScreen> {
-  String _filtro = 'pendientes';
+  String _filtro = '';
   String? _empresaFiltro;
   String? _usuarioFiltro;
   List<String> _empresas = [];
@@ -30,7 +30,6 @@ class _PagosScreenState extends State<PagosScreen> {
   final Set<int> _ocultos = {};
 
   final _filtros = const [
-    ['pendientes', 'Pendientes'],
     ['hoy', 'Hoy'],
     ['semana', 'Esta semana'],
     ['mes', 'Este mes'],

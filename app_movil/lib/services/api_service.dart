@@ -177,7 +177,7 @@ class ApiService {
 
   // ---------- Pagos ----------
 
-  static Future<List<Pago>> getPagos({String filtro = 'pendientes', String? empresa, String? usuario}) async {
+  static Future<List<Pago>> getPagos({String filtro = '', String? empresa, String? usuario}) async {
     final query = {
       'filtro': filtro,
       if (empresa != null && empresa.isNotEmpty) 'empresa': empresa,

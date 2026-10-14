@@ -128,7 +128,7 @@ function estadoVisual(pago) {
 }
 
 // ---------- Listado de pagos ----------
-let filtroActual = "pendientes";
+let filtroActual = "";
 let empresaActual = "";
 let usuarioFiltroActual = "";
 
