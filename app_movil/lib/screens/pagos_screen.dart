@@ -219,7 +219,10 @@ class _PagosScreenState extends State<PagosScreen> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(contextoDialogo, 'cerrar'), child: const Text('Cerrar')),
+          TextButton(
+            onPressed: () => Navigator.pop(contextoDialogo, 'cerrar'),
+            child: const Text('🔕 Apagar alarma'),
+          ),
           TextButton(onPressed: () => Navigator.pop(contextoDialogo, 'editar'), child: const Text('Ver / editar')),
           if (pago.estado == 'pendiente')
             FilledButton(

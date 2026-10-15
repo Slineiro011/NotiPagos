@@ -24,10 +24,9 @@ Future<void> _iniciarAlarmaNativa({required String titulo, required String cuerp
   if (pagoId != null) {
     // Con un pago real se abre su ficha (PagosScreen), que tambien apaga la alarma.
     NotificacionesService.pagoPorAbrir.value = pagoId;
-  } else if (Platform.isIOS) {
-    // Prueba de alarma: en Android el boton "Apagar" viene en la notificacion
-    // del AlarmService; en iOS no hay notificacion persistente con la app
-    // abierta, asi que se muestra un dialogo para apagarla.
+  } else {
+    // Prueba de alarma (sin pago asociado): se muestra un dialogo con boton
+    // propio para apagarla, ademas del "Apagar" de la notificacion nativa.
     _mostrarDialogoAlarma(titulo: titulo, cuerpo: cuerpo);
   }
 }
@@ -119,6 +118,9 @@ class NotificacionesService {
       try {
         // La app se abrio tocando la notificacion de la alarma.
         pagoPorAbrir.value ??= _pagoIdDe(await _canalAlarma.invokeMethod<String>('pagoInicial'));
+        // Respaldo: la app se abrio de otra forma (ej. icono) mientras una
+        // alarma ya sonaba en segundo plano, asi que no llego por el Intent.
+        pagoPorAbrir.value ??= _pagoIdDe(await _canalAlarma.invokeMethod<String>('alarmaActivaPagoId'));
       } catch (_) {}
     }
 

@@ -4,6 +4,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.media.AudioAttributes
 import android.media.MediaPlayer
@@ -28,6 +29,26 @@ class AlarmService : Service() {
         const val EXTRA_TITULO = "titulo"
         const val EXTRA_CUERPO = "cuerpo"
         const val EXTRA_PAGO_ID = "pagoId"
+
+        private const val PREFS = "alarma_estado"
+        private const val KEY_PAGO_ID_ACTIVO = "pago_id_activo"
+
+        /**
+         * Pago de la alarma que esta sonando ahora mismo (si hay una activa),
+         * para que MainActivity pueda detectarla aunque la app se abra sin
+         * pasar por el Intent de la notificacion (ej. tocando el icono).
+         */
+        fun pagoIdActivo(context: Context): String? =
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_PAGO_ID_ACTIVO, null)
+
+        private fun guardarPagoActivo(context: Context, pagoId: String?) {
+            if (pagoId == null) return
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_PAGO_ID_ACTIVO, pagoId).apply()
+        }
+
+        private fun limpiarPagoActivo(context: Context) {
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(KEY_PAGO_ID_ACTIVO).apply()
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -56,6 +77,7 @@ class AlarmService : Service() {
     }
 
     private fun iniciarAlarma(titulo: String, cuerpo: String, pagoId: String?) {
+        guardarPagoActivo(this, pagoId)
         crearCanalSiHaceFalta()
         val stopIntent = Intent(this, AlarmService::class.java).apply { action = ACTION_STOP }
         val stopPendiente = PendingIntent.getService(
@@ -121,6 +143,7 @@ class AlarmService : Service() {
     }
 
     private fun detenerAlarma() {
+        limpiarPagoActivo(this)
         detenerSonido()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
