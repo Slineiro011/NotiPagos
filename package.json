@@ -16,7 +16,7 @@
     "express": "^4.21.2",
     "firebase-admin": "^14.3.0",
     "jsonwebtoken": "^9.0.3",
-    "node-cron": "^3.0.3",
+    "node-cron": "^4.6.0",
     "pg": "^8.13.1"
   }
 }
