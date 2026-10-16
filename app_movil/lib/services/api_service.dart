@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/pago.dart';
@@ -32,6 +33,7 @@ class _ClienteNotiPagos extends http.BaseClient {
 }
 
 final _cliente = _ClienteNotiPagos();
+const _almacenSeguro = FlutterSecureStorage();
 
 /// Se llama cuando el servidor responde 401 (sesion invalida/expirada), para
 /// que la app pueda volver a mostrar la pantalla de login.
@@ -56,17 +58,26 @@ class ApiService {
 
   static Future<String?> getToken() async {
     if (_cacheToken != null) return _cacheToken;
-    final prefs = await SharedPreferences.getInstance();
-    _cacheToken = prefs.getString(_clavePrefToken);
+    _cacheToken = await _almacenSeguro.read(key: _clavePrefToken);
+    if (_cacheToken == null) {
+      // Migracion: sesiones guardadas antes de pasar a almacenamiento cifrado
+      // vivian sin cifrar en SharedPreferences. Se traen una sola vez.
+      final prefs = await SharedPreferences.getInstance();
+      final tokenViejo = prefs.getString(_clavePrefToken);
+      if (tokenViejo != null) {
+        await _almacenSeguro.write(key: _clavePrefToken, value: tokenViejo);
+        await prefs.remove(_clavePrefToken);
+        _cacheToken = tokenViejo;
+      }
+    }
     return _cacheToken;
   }
 
   static Future<void> _setToken(String? token) async {
-    final prefs = await SharedPreferences.getInstance();
     if (token == null) {
-      await prefs.remove(_clavePrefToken);
+      await _almacenSeguro.delete(key: _clavePrefToken);
     } else {
-      await prefs.setString(_clavePrefToken, token);
+      await _almacenSeguro.write(key: _clavePrefToken, value: token);
     }
     _cacheToken = token;
   }

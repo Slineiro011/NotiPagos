@@ -6,6 +6,7 @@ import 'screens/usuarios_screen.dart';
 import 'screens/login_screen.dart';
 import 'services/api_service.dart';
 import 'services/notificaciones_service.dart' show NotificacionesService, navegadorGlobal;
+import 'services/tema_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,6 +17,7 @@ void main() {
     // funcionando normal, solo sin notificaciones push por ahora.
     debugPrint('No se pudo inicializar las notificaciones push: $e');
   });
+  TemaService.cargar();
   runApp(const NotiPagosApp());
 }
 
@@ -24,16 +26,29 @@ class NotiPagosApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'NotiPagos',
-      navigatorKey: navegadorGlobal,
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorSchemeSeed: const Color(0xFF2563EB),
-        useMaterial3: true,
-        appBarTheme: const AppBarTheme(centerTitle: false),
-      ),
-      home: const AuthGate(),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: TemaService.modo,
+      builder: (context, modo, _) {
+        return MaterialApp(
+          title: 'NotiPagos',
+          navigatorKey: navegadorGlobal,
+          debugShowCheckedModeBanner: false,
+          themeMode: modo,
+          theme: ThemeData(
+            colorSchemeSeed: const Color(0xFF2563EB),
+            brightness: Brightness.light,
+            useMaterial3: true,
+            appBarTheme: const AppBarTheme(centerTitle: false),
+          ),
+          darkTheme: ThemeData(
+            colorSchemeSeed: const Color(0xFF2563EB),
+            brightness: Brightness.dark,
+            useMaterial3: true,
+            appBarTheme: const AppBarTheme(centerTitle: false),
+          ),
+          home: const AuthGate(),
+        );
+      },
     );
   }
 }

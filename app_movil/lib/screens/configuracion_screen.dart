@@ -2,6 +2,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/notificaciones_service.dart';
+import '../services/tema_service.dart';
 import '../widgets/cargando.dart';
 
 class ConfiguracionScreen extends StatefulWidget {
@@ -318,6 +319,24 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
             ),
           ),
           const SizedBox(height: 16),
+          _tarjeta(
+            titulo: 'Apariencia',
+            hijo: ValueListenableBuilder<ThemeMode>(
+              valueListenable: TemaService.modo,
+              builder: (context, modo, _) {
+                return SegmentedButton<ThemeMode>(
+                  segments: const [
+                    ButtonSegment(value: ThemeMode.system, label: Text('Sistema'), icon: Icon(Icons.brightness_auto)),
+                    ButtonSegment(value: ThemeMode.light, label: Text('Claro'), icon: Icon(Icons.light_mode)),
+                    ButtonSegment(value: ThemeMode.dark, label: Text('Oscuro'), icon: Icon(Icons.dark_mode)),
+                  ],
+                  selected: {modo},
+                  onSelectionChanged: (seleccion) => TemaService.cambiar(seleccion.first),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
           if (!_esJefe)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -395,7 +414,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
           const SizedBox(height: 24),
           Center(
             child: Text(
-              'NotiPagos v1.8.5+19 · Desarrollado por SlinMask Labs',
+              'NotiPagos v1.9.0+20 · Desarrollado por SlinMask Labs',
               style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
             ),
           ),
