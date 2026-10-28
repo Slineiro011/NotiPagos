@@ -30,7 +30,7 @@ class NotiPagosApp extends StatelessWidget {
       valueListenable: TemaService.modo,
       builder: (context, modo, _) {
         return MaterialApp(
-          title: 'NotiPagos',
+          title: 'Notix',
           navigatorKey: navegadorGlobal,
           debugShowCheckedModeBanner: false,
           themeMode: modo,
