@@ -1,4 +1,4 @@
-# NotiPagos — contexto para Claude
+# Notix — contexto para Claude
 
 Responder siempre en español.
 
