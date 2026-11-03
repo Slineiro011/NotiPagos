@@ -42,6 +42,11 @@ class ApiService {
   static String? _cacheToken;
   static VoidCallback? onNoAutenticado;
 
+  /// Se llama cuando el servidor responde 402 (el mes de prueba termino y no
+  /// hay suscripcion activa), para que la app pueda mostrar la pantalla de
+  /// suscripcion sin importar en que pantalla estaba el usuario.
+  static VoidCallback? onSuscripcionRequerida;
+
   static Future<String> getBaseUrl() async {
     if (_cacheBaseUrl != null) return _cacheBaseUrl!;
     final prefs = await SharedPreferences.getInstance();
@@ -97,12 +102,64 @@ class ApiService {
       body: jsonEncode({'usuario': usuario, 'password': password}),
     );
     if (res.statusCode != 200) throw Exception(_mensajeDe(res, 'No se pudo iniciar sesión'));
-    final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+    await _guardarSesion(jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>, usuario);
+  }
+
+  /// Registro propio: crea una cuenta nueva (la persona queda como jefe de su
+  /// propia empresa) con el mes de prueba gratis arrancando de una vez.
+  static Future<void> registro({
+    required String usuario,
+    required String password,
+    required String nombre,
+    String? telefono,
+  }) async {
+    final res = await _cliente.post(
+      await _uri('/auth/registro'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'usuario': usuario, 'password': password, 'nombre': nombre, 'telefono': telefono}),
+    );
+    if (res.statusCode != 201) throw Exception(_mensajeDe(res, 'No se pudo crear la cuenta'));
+    await _guardarSesion(jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>, usuario);
+  }
+
+  static Future<void> _guardarSesion(Map<String, dynamic> data, String usuarioRespaldo) async {
     await _setToken(data['token'] as String);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_clavePrefNombre, (data['nombre'] ?? data['usuario'] ?? '') as String);
     await prefs.setString(_clavePrefRol, (data['rol'] ?? 'usuario') as String);
-    await prefs.setString(_clavePrefUsuario, (data['usuario'] ?? usuario) as String);
+    await prefs.setString(_clavePrefUsuario, (data['usuario'] ?? usuarioRespaldo) as String);
+  }
+
+  // ---------- Suscripcion ----------
+
+  static Future<Map<String, dynamic>> getEstadoSuscripcion() async {
+    final res = await _cliente.get(await _uri('/auth/suscripcion'), headers: await _headers());
+    if (res.statusCode == 401) {
+      _setToken(null);
+      onNoAutenticado?.call();
+      throw Exception('Sesión expirada, vuelve a iniciar sesión.');
+    }
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw Exception(_mensajeDe(res, 'No se pudo consultar el estado de la suscripción'));
+    }
+    return jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+  }
+
+  /// Manda el purchaseToken que entrega Google Play al comprar, para que el
+  /// servidor lo verifique contra Google antes de activar la suscripcion.
+  static Future<Map<String, dynamic>> verificarCompra({
+    required String plataforma,
+    required String purchaseToken,
+  }) async {
+    final res = await _cliente.post(
+      await _uri('/auth/verificar-compra'),
+      headers: await _headers(),
+      body: jsonEncode({'plataforma': plataforma, 'purchaseToken': purchaseToken}),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw Exception(_mensajeDe(res, 'No se pudo verificar la compra'));
+    }
+    return jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
   }
 
   static Future<String> getNombre() async {
@@ -169,6 +226,10 @@ class ApiService {
       _setToken(null);
       onNoAutenticado?.call();
       throw Exception('Sesión expirada, vuelve a iniciar sesión.');
+    }
+    if (res.statusCode == 402) {
+      onSuscripcionRequerida?.call();
+      throw Exception(_mensajeDe(res, 'Tu mes de prueba gratis terminó. Suscríbete para seguir usando la app.'));
     }
     if (res.statusCode < 200 || res.statusCode >= 300) {
       throw Exception(_mensajeDe(res, 'No se pudo completar la operación'));

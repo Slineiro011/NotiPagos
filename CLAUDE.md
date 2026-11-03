@@ -1,4 +1,4 @@
-# Notix — contexto para Claude
+# ActivoX — contexto para Claude
 
 Responder siempre en español.
 
@@ -32,13 +32,24 @@ Responder siempre en español.
 - Sesión: el token va cifrado en `flutter_secure_storage` (Keystore/Keychain), no en SharedPreferences; hay migración automática para sesiones viejas. Nombre/rol/usuario (no sensibles) siguen en SharedPreferences.
 - Tema: `TemaService` (claro/oscuro/sistema), selector en Configuración → "Apariencia", persistido en SharedPreferences.
 - El campo "Servidor" en Configuración ya está oculto a quien no es jefe.
-- `npm audit`: quedan 2 moderadas sin arreglo porque `exceljs` no tiene una versión más nueva que actualice su dependencia de `uuid` (bajarlo rompería el export a Excel). El resto (incluida la crítica) ya se arregló.
+- `npm audit`: quedan 12 moderadas sin arreglo (antes 2): la cadena `archiver`/`glob`/`minimatch`/`uuid` de `exceljs` (bajarlo rompería el export a Excel) y, desde que se agregó `googleapis`, la misma familia de paquetes (`gaxios`/`gcp-metadata`/`google-gax`/`rimraf`) vía `@google-cloud/firestore-api`, una dependencia transitiva que ni se usa (solo se usa `androidpublisher` del paquete). Se intentó acotar con `overrides` en `package.json` sin éxito (npm sigue resolviendo la version vieja); no son explotables desde esta app (nada recibe rutas de archivo controladas por el usuario), así que se dejan igual que las de exceljs.
 
-## Marca: Notix (antes NotiPagos)
-- Nombre visible en la app: "Notix" (Android `android:label`, iOS `CFBundleDisplayName`, `MaterialApp.title`, texto de versión en Configuración).
+## Marca: ActivoX (antes Notix, antes NotiPagos)
+- Nombre visible en la app: "ActivoX" (Android `android:label`, iOS `CFBundleDisplayName`, `MaterialApp.title`, texto de versión en Configuración, `public/eliminar-cuenta.html`).
 - Los identificadores internos NO cambiaron a propósito: `com.smartlatam.notipagos_app` (Android), `com.smartlatam.notipagosApp` (iOS), nombres de clases y del canal nativo. Cambiarlos rompería las actualizaciones en las tiendas y la configuración de Firebase.
-- Íconos: `assets/icon/icon.png` es el logo completo (iOS e ícono clásico de Android). `assets/icon/icon_foreground.png` es el mismo logo al 87% centrado, para el ícono adaptable de Android (el plugin ya aplica un inset de 16%; así nada queda recortado por la máscara circular). Regenerar con `dart run flutter_launcher_icons`.
-- Falta: cambiar el nombre en Play Console / App Store Connect; la web (`public/`) sigue diciendo NotiPagos. Sugerido al jefe: una versión del ícono sin la palabra "NOTIX" (se ve pequeña), pendiente de su decisión.
+- Íconos: `assets/icon/icon.png` es el logo completo (iOS e ícono clásico de Android). `assets/icon/icon_foreground.png` es el mismo logo sin el texto "ACTIVOX", al 87% centrado, para el ícono adaptable de Android (el plugin ya aplica un inset de 16%; así nada queda recortado por la máscara circular). Regenerar con `dart run flutter_launcher_icons`.
+- Falta: cambiar el nombre/ícono en Play Console (ficha de la tienda) y App Store Connect cuando se cree la app ahí; `public/index.html` sigue diciendo "Pagos de la empresa" (genérico, no menciona marca).
+
+## Cuentas, mes gratis y suscripción (en curso, 2026-11-03)
+- El jefe pidió que cualquier persona pueda usar la app sola (sin depender de una empresa que le asigne usuario), con 1 mes gratis y luego $5/mes.
+- Antes de esto el sistema era de una sola empresa compartida: `usuarios` no tenía dueño y todos los pagos eran una sola bolsa global. Se agregó la tabla `cuentas` (cada una con su propio `prueba_inicio`, `suscripcion_activa`, `suscripcion_vence`) y una columna `cuenta_id` en `usuarios`, `pagos`, `historial_pagos` y `configuracion`, con migración automática (la empresa real que ya usaba el sistema quedó en su propia cuenta, **ya marcada con suscripción activa** para que este cambio nunca la bloquee). Toda la lógica (rutas, `paymentsService`, `settingsService`, el bot de WhatsApp en `conversacion.js`, el programador en `scheduler.js`) quedó filtrada por `cuenta_id` — antes no existía ningún aislamiento entre empresas.
+- `POST /api/auth/registro`: registro propio, la persona queda de jefe de su propia cuenta nueva.
+- `GET /api/auth/suscripcion`: estado (en prueba / cuándo vence / activa). Al pasar el mes sin suscripción, **todo `/api/pagos`** (pagos, historial, exportar) responde 402 — bloqueo total, a propósito.
+- `scheduler.js` ahora recorre todas las cuentas cada minuto (cada una con su propia hora de recordatorio en vez de una sola global); `src/routes/cron.js` (el disparador externo para cuando Render duerme) usa `scheduler.revisarTodasLasCuentas()`, no una sola revisión global.
+- Suscripción: `in_app_purchase` en la app (`lib/services/suscripcion_service.dart`, producto `activox_suscripcion_mensual`) + `POST /api/auth/verificar-compra`, que verifica el `purchaseToken` contra la API de Android Publisher (`src/services/comprasService.js`, usa `googleapis`) antes de activar la cuenta — nunca se confía en lo que reporte el celular. Falta por hacer: **crear el producto de suscripción ($5/mes) en Play Console** (Monetiza → Productos → Suscripciones, con ese mismo ID) y **crear la cuenta de servicio de Google Cloud con acceso a la Android Publisher API**, subir su JSON como `google-play-service-account.json` (mismo patrón que `firebase-service-account.json`: Secret File en Render o archivo local en la raíz, gitignored) y vincularla en Play Console → Configuración → Acceso a la API.
+- Verificación de compra en iOS queda pendiente (App Store Server API); por ahora `POST /api/auth/verificar-compra` rechaza `plataforma: "ios"`.
+- Pantallas nuevas en la app: `registro_screen.dart` (desde el login, "¿No tienes cuenta? Regístrate") y `suscripcion_screen.dart` (pantalla de bloqueo, no se puede cerrar sin suscribirse o cerrar sesión; `AuthGate` en `main.dart` decide si mostrarla consultando `/api/auth/suscripcion` al abrir la app, además de reaccionar en caliente si cualquier llamada responde 402).
+- **No se ha desplegado todavía**: falta `git push` (dispara el deploy en Render y corre la migración contra Neon en producción) y crear el producto/cuenta de servicio en Play Console antes de que la compra funcione de verdad.
 
 ## Ideas siguientes
 Fechas legibles y puntos de miles al escribir el monto; filtros y totales en Historial; foto del comprobante y monto real pagado (requieren cambios en el servidor).

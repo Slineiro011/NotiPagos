@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../widgets/cargando.dart';
+import 'registro_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final VoidCallback onLoginExitoso;
@@ -80,6 +81,23 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 16),
                   const AvisoServidorLento(),
                 ],
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: _cargando
+                      ? null
+                      : () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => RegistroScreen(
+                                onRegistroExitoso: () {
+                                  Navigator.of(context).pop();
+                                  widget.onLoginExitoso();
+                                },
+                                onVolverAlLogin: () => Navigator.of(context).pop(),
+                              ),
+                            ),
+                          ),
+                  child: const Text('¿No tienes cuenta? Regístrate'),
+                ),
               ],
             ),
           ),

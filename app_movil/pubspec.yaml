@@ -40,6 +40,7 @@ dependencies:
   firebase_core: ^4.15.0
   firebase_messaging: ^16.7.0
   flutter_secure_storage: ^9.2.4
+  in_app_purchase: ^3.2.3
 
 dev_dependencies:
   flutter_test:

@@ -19,25 +19,27 @@ async function getByTelefono(telefono) {
   return rows[0] || null;
 }
 
-async function listar() {
+async function listar(cuentaId) {
   const { rows } = await pool.query(
-    "SELECT id, usuario, nombre, rol, telefono, creado_en FROM usuarios ORDER BY creado_en ASC"
+    "SELECT id, usuario, nombre, rol, telefono, creado_en FROM usuarios WHERE cuenta_id = $1 ORDER BY creado_en ASC",
+    [cuentaId]
   );
   return rows;
 }
 
-async function crear(usuario, nombre, passwordPlano, { rol = "usuario", telefono = null } = {}) {
+async function crear(usuario, nombre, passwordPlano, { rol = "usuario", telefono = null, cuentaId } = {}) {
+  if (!cuentaId) throw new Error("cuentaId es obligatorio para crear un usuario");
   const hash = await bcrypt.hash(passwordPlano, 10);
   const rolFinal = rol === "jefe" ? "jefe" : "usuario";
   const { rows } = await pool.query(
-    `INSERT INTO usuarios (usuario, nombre, password_hash, rol, telefono) VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO usuarios (usuario, nombre, password_hash, rol, telefono, cuenta_id) VALUES ($1, $2, $3, $4, $5, $6)
      ON CONFLICT (usuario) DO UPDATE SET
        password_hash = excluded.password_hash,
        nombre = excluded.nombre,
        rol = excluded.rol,
        telefono = excluded.telefono
-     RETURNING id, usuario, nombre, rol, telefono`,
-    [usuario, nombre || usuario, hash, rolFinal, limpiarTelefono(telefono)]
+     RETURNING id, usuario, nombre, rol, telefono, cuenta_id`,
+    [usuario, nombre || usuario, hash, rolFinal, limpiarTelefono(telefono), cuentaId]
   );
   return rows[0];
 }
@@ -53,7 +55,7 @@ async function actualizar(usuario, { nombre, rol, telefono, password } = {}) {
 
   const { rows } = await pool.query(
     `UPDATE usuarios SET nombre=$1, rol=$2, telefono=$3, password_hash=$4 WHERE usuario=$5
-     RETURNING id, usuario, nombre, rol, telefono`,
+     RETURNING id, usuario, nombre, rol, telefono, cuenta_id`,
     [nombre ?? actual.nombre, rolFinal, telefonoFinal, nuevoHash, usuario]
   );
   return rows[0];
@@ -76,7 +78,7 @@ async function cambiarUsuario(usuarioActual, nuevoUsuario) {
     await client.query("BEGIN");
     const { rows } = await client.query(
       `UPDATE usuarios SET usuario = $2 WHERE usuario = $1
-       RETURNING id, usuario, nombre, rol, telefono`,
+       RETURNING id, usuario, nombre, rol, telefono, cuenta_id`,
       [usuarioActual, nuevoUsuario]
     );
     if (!rows[0]) {
@@ -100,7 +102,9 @@ async function verificarPassword(usuario, passwordPlano) {
   const fila = await getByUsuario(usuario);
   if (!fila) return null;
   const ok = await bcrypt.compare(passwordPlano, fila.password_hash);
-  return ok ? { id: fila.id, usuario: fila.usuario, nombre: fila.nombre, rol: fila.rol, telefono: fila.telefono } : null;
+  return ok
+    ? { id: fila.id, usuario: fila.usuario, nombre: fila.nombre, rol: fila.rol, telefono: fila.telefono, cuenta_id: fila.cuenta_id }
+    : null;
 }
 
 module.exports = {

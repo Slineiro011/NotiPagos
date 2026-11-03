@@ -4,6 +4,7 @@ import 'screens/historial_screen.dart';
 import 'screens/configuracion_screen.dart';
 import 'screens/usuarios_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/suscripcion_screen.dart';
 import 'services/api_service.dart';
 import 'services/notificaciones_service.dart' show NotificacionesService, navegadorGlobal;
 import 'services/tema_service.dart';
@@ -30,7 +31,7 @@ class NotiPagosApp extends StatelessWidget {
       valueListenable: TemaService.modo,
       builder: (context, modo, _) {
         return MaterialApp(
-          title: 'Notix',
+          title: 'ActivoX',
           navigatorKey: navegadorGlobal,
           debugShowCheckedModeBanner: false,
           themeMode: modo,
@@ -63,6 +64,7 @@ class AuthGate extends StatefulWidget {
 class _AuthGateState extends State<AuthGate> {
   bool _cargando = true;
   bool _autenticado = false;
+  bool _bloqueadoPorSuscripcion = false;
 
   @override
   void initState() {
@@ -70,20 +72,39 @@ class _AuthGateState extends State<AuthGate> {
     ApiService.onNoAutenticado = () {
       if (mounted) setState(() => _autenticado = false);
     };
+    ApiService.onSuscripcionRequerida = () {
+      if (mounted) setState(() => _bloqueadoPorSuscripcion = true);
+    };
     _revisarSesion();
   }
 
   Future<void> _revisarSesion() async {
     final token = await ApiService.getToken();
+    final autenticado = token != null;
+    var bloqueado = false;
+    if (autenticado) {
+      try {
+        final estado = await ApiService.getEstadoSuscripcion();
+        bloqueado = estado['tieneAcceso'] != true;
+      } catch (_) {
+        // Si fallo la consulta (sin internet, etc.) se deja pasar: el
+        // bloqueo real se aplica igual en cada llamada a /api/pagos.
+      }
+    }
+    if (!mounted) return;
     setState(() {
-      _autenticado = token != null;
+      _autenticado = autenticado;
+      _bloqueadoPorSuscripcion = bloqueado;
       _cargando = false;
     });
   }
 
   Future<void> _salir() async {
     await ApiService.cerrarSesion();
-    setState(() => _autenticado = false);
+    setState(() {
+      _autenticado = false;
+      _bloqueadoPorSuscripcion = false;
+    });
   }
 
   @override
@@ -93,10 +114,20 @@ class _AuthGateState extends State<AuthGate> {
     }
     if (!_autenticado) {
       return LoginScreen(
-        onLoginExitoso: () {
-          setState(() => _autenticado = true);
+        onLoginExitoso: () async {
+          final estado = await ApiService.getEstadoSuscripcion().catchError((_) => <String, dynamic>{});
+          setState(() {
+            _autenticado = true;
+            _bloqueadoPorSuscripcion = estado['tieneAcceso'] == false;
+          });
           NotificacionesService.registrarTokenActual();
         },
+      );
+    }
+    if (_bloqueadoPorSuscripcion) {
+      return SuscripcionScreen(
+        onSuscripcionActivada: () => setState(() => _bloqueadoPorSuscripcion = false),
+        onCerrarSesion: _salir,
       );
     }
     return HomeShell(onSalir: _salir);

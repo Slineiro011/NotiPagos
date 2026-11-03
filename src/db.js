@@ -93,6 +93,48 @@ async function migrar() {
     ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS rol TEXT NOT NULL DEFAULT 'usuario';
     ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS telefono TEXT;
     CREATE UNIQUE INDEX IF NOT EXISTS usuarios_telefono_idx ON usuarios (telefono) WHERE telefono IS NOT NULL;
+
+    -- Cuentas: cada una es una empresa/persona independiente, duena de sus
+    -- propios usuarios, pagos e historial. Antes del registro propio, todo el
+    -- sistema era de una sola empresa compartida; la migracion de abajo mete
+    -- todos los datos viejos en una cuenta por defecto para no romper nada.
+    CREATE TABLE IF NOT EXISTS cuentas (
+      id SERIAL PRIMARY KEY,
+      nombre TEXT NOT NULL DEFAULT 'Mi empresa',
+      creado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+      prueba_inicio TIMESTAMPTZ NOT NULL DEFAULT now(),
+      suscripcion_activa BOOLEAN NOT NULL DEFAULT false,
+      suscripcion_vence TIMESTAMPTZ,
+      plataforma_pago TEXT,
+      id_compra TEXT
+    );
+    -- La cuenta migrada es la empresa real que ya usaba el sistema antes de
+    -- que existiera el concepto de cuentas: queda con suscripcion activa de
+    -- una vez para que este cambio nunca la bloquee, sin depender de que la
+    -- parte de cobro (fase 2, compra en la tienda) ya este lista.
+    INSERT INTO cuentas (nombre, suscripcion_activa)
+      SELECT 'Empresa principal', true WHERE NOT EXISTS (SELECT 1 FROM cuentas);
+
+    ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cuenta_id INTEGER;
+    UPDATE usuarios SET cuenta_id = (SELECT id FROM cuentas ORDER BY id LIMIT 1) WHERE cuenta_id IS NULL;
+    ALTER TABLE usuarios ALTER COLUMN cuenta_id SET NOT NULL;
+    CREATE INDEX IF NOT EXISTS usuarios_cuenta_idx ON usuarios (cuenta_id);
+
+    ALTER TABLE pagos ADD COLUMN IF NOT EXISTS cuenta_id INTEGER;
+    UPDATE pagos SET cuenta_id = (SELECT id FROM cuentas ORDER BY id LIMIT 1) WHERE cuenta_id IS NULL;
+    ALTER TABLE pagos ALTER COLUMN cuenta_id SET NOT NULL;
+    CREATE INDEX IF NOT EXISTS pagos_cuenta_idx ON pagos (cuenta_id);
+
+    ALTER TABLE historial_pagos ADD COLUMN IF NOT EXISTS cuenta_id INTEGER;
+    UPDATE historial_pagos SET cuenta_id = (SELECT id FROM cuentas ORDER BY id LIMIT 1) WHERE cuenta_id IS NULL;
+    ALTER TABLE historial_pagos ALTER COLUMN cuenta_id SET NOT NULL;
+    CREATE INDEX IF NOT EXISTS historial_pagos_cuenta_idx ON historial_pagos (cuenta_id);
+
+    ALTER TABLE configuracion ADD COLUMN IF NOT EXISTS cuenta_id INTEGER;
+    UPDATE configuracion SET cuenta_id = (SELECT id FROM cuentas ORDER BY id LIMIT 1) WHERE cuenta_id IS NULL;
+    ALTER TABLE configuracion ALTER COLUMN cuenta_id SET NOT NULL;
+    ALTER TABLE configuracion DROP CONSTRAINT IF EXISTS configuracion_pkey;
+    ALTER TABLE configuracion ADD CONSTRAINT configuracion_pkey PRIMARY KEY (cuenta_id, clave);
   `);
 }
 

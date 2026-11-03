@@ -45,9 +45,9 @@ function puedeFiltrarPorUsuario(usuarioActual) {
   return !usuarioActual || usuarioActual.rol === "jefe";
 }
 
-async function getAll(empresa, usuarioActual, usuarioFiltro) {
-  const condiciones = [];
-  const params = [];
+async function getAll(cuentaId, empresa, usuarioActual, usuarioFiltro) {
+  const condiciones = ["pagos.cuenta_id = $1"];
+  const params = [cuentaId];
   if (empresa) {
     params.push(empresa);
     condiciones.push(`LOWER(empresa) = LOWER($${params.length})`);
@@ -64,10 +64,11 @@ async function getAll(empresa, usuarioActual, usuarioFiltro) {
   return rows.map(normalizarFila);
 }
 
-async function getById(id, usuarioActual) {
+async function getById(id, usuarioActual, cuentaId) {
   const { rows } = await pool.query(`${SELECT_PAGOS} WHERE pagos.id = $1`, [id]);
   const pago = normalizarFila(rows[0]);
   if (!pago) return null;
+  if (cuentaId !== undefined && pago.cuenta_id !== cuentaId) return null;
   if (esVisibilidadRestringida(usuarioActual) && pago.creado_por !== usuarioActual.usuario) return null;
   return pago;
 }
@@ -79,9 +80,17 @@ async function getById(id, usuarioActual) {
  * se pase, para llamadas internas del sistema). usuarioFiltro (solo aplica
  * si quien pregunta es jefe) permite ver los pagos de UN usuario especifico.
  */
-async function getPagos({ filtro, empresa, usuarioActual, usuarioFiltro } = {}) {
+async function getPagos({ filtro, empresa, usuarioActual, usuarioFiltro, cuentaId } = {}) {
   const condiciones = ["pagos.estado = 'pendiente'"];
   const params = [];
+
+  // cuentaId es opcional: el scheduler interno revisa pendientes de TODAS las
+  // cuentas (cada pago ya sabe a quien avisar por su propio creado_por); las
+  // rutas HTTP si lo pasan siempre, para no mezclar pagos de otras cuentas.
+  if (cuentaId !== undefined) {
+    params.push(cuentaId);
+    condiciones.push(`pagos.cuenta_id = $${params.length}`);
+  }
 
   if (filtro === "hoy") {
     params.push(hoy());
@@ -118,28 +127,29 @@ async function getPagos({ filtro, empresa, usuarioActual, usuarioFiltro } = {}) 
   return rows.map(normalizarFila);
 }
 
-const getPendientes = (empresa, usuarioActual, usuarioFiltro) =>
-  getPagos({ filtro: "pendientes", empresa, usuarioActual, usuarioFiltro });
-const getDeHoy = (empresa, usuarioActual, usuarioFiltro) =>
-  getPagos({ filtro: "hoy", empresa, usuarioActual, usuarioFiltro });
-const getDeLaSemana = (empresa, usuarioActual, usuarioFiltro) =>
-  getPagos({ filtro: "semana", empresa, usuarioActual, usuarioFiltro });
-const getDelMes = (empresa, usuarioActual, usuarioFiltro) =>
-  getPagos({ filtro: "mes", empresa, usuarioActual, usuarioFiltro });
-const getVencidos = (empresa, usuarioActual, usuarioFiltro) =>
-  getPagos({ filtro: "vencidos", empresa, usuarioActual, usuarioFiltro });
+const getPendientes = (empresa, usuarioActual, usuarioFiltro, cuentaId) =>
+  getPagos({ filtro: "pendientes", empresa, usuarioActual, usuarioFiltro, cuentaId });
+const getDeHoy = (empresa, usuarioActual, usuarioFiltro, cuentaId) =>
+  getPagos({ filtro: "hoy", empresa, usuarioActual, usuarioFiltro, cuentaId });
+const getDeLaSemana = (empresa, usuarioActual, usuarioFiltro, cuentaId) =>
+  getPagos({ filtro: "semana", empresa, usuarioActual, usuarioFiltro, cuentaId });
+const getDelMes = (empresa, usuarioActual, usuarioFiltro, cuentaId) =>
+  getPagos({ filtro: "mes", empresa, usuarioActual, usuarioFiltro, cuentaId });
+const getVencidos = (empresa, usuarioActual, usuarioFiltro, cuentaId) =>
+  getPagos({ filtro: "vencidos", empresa, usuarioActual, usuarioFiltro, cuentaId });
 
-async function getEmpresas() {
+async function getEmpresas(cuentaId) {
   const { rows } = await pool.query(
-    "SELECT DISTINCT empresa FROM pagos WHERE empresa IS NOT NULL AND empresa <> '' ORDER BY empresa"
+    "SELECT DISTINCT empresa FROM pagos WHERE cuenta_id = $1 AND empresa IS NOT NULL AND empresa <> '' ORDER BY empresa",
+    [cuentaId]
   );
   return rows.map((r) => r.empresa);
 }
 
-async function create(data, usuarioActual) {
+async function create(data, usuarioActual, cuentaId) {
   const { rows } = await pool.query(
-    `INSERT INTO pagos (empresa, nombre, categoria, monto, fecha_vencimiento, recurrencia, dias_aviso, notas, creado_por)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+    `INSERT INTO pagos (empresa, nombre, categoria, monto, fecha_vencimiento, recurrencia, dias_aviso, notas, creado_por, cuenta_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
     [
       data.empresa || "Sin empresa",
       data.nombre,
@@ -150,13 +160,14 @@ async function create(data, usuarioActual) {
       Number(data.dias_aviso ?? 3),
       data.notas || "",
       usuarioActual?.usuario ?? null,
+      cuentaId,
     ]
   );
   return getById(rows[0].id);
 }
 
-async function update(id, data, usuarioActual) {
-  const actual = await getById(id, usuarioActual);
+async function update(id, data, usuarioActual, cuentaId) {
+  const actual = await getById(id, usuarioActual, cuentaId);
   if (!actual) return null;
   await pool.query(
     `UPDATE pagos SET empresa=$1, nombre=$2, categoria=$3, monto=$4, fecha_vencimiento=$5,
@@ -178,8 +189,8 @@ async function update(id, data, usuarioActual) {
   return getById(id);
 }
 
-async function remove(id, usuarioActual) {
-  const actual = await getById(id, usuarioActual);
+async function remove(id, usuarioActual, cuentaId) {
+  const actual = await getById(id, usuarioActual, cuentaId);
   if (!actual) return false;
   await pool.query("DELETE FROM pagos WHERE id = $1", [id]);
   return true;
@@ -191,14 +202,14 @@ function siguienteFecha(fecha, recurrencia) {
   return dayjs(fecha).add(meses, "month").format("YYYY-MM-DD");
 }
 
-async function marcarPagado(id, usuarioActual) {
-  const pago = await getById(id, usuarioActual);
+async function marcarPagado(id, usuarioActual, cuentaId) {
+  const pago = await getById(id, usuarioActual, cuentaId);
   if (!pago) return null;
 
   await pool.query(
-    `INSERT INTO historial_pagos (pago_id, empresa, nombre, categoria, monto, fecha_vencimiento, creado_por)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-    [pago.id, pago.empresa, pago.nombre, pago.categoria, pago.monto, pago.fecha_vencimiento, pago.creado_por]
+    `INSERT INTO historial_pagos (pago_id, empresa, nombre, categoria, monto, fecha_vencimiento, creado_por, cuenta_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [pago.id, pago.empresa, pago.nombre, pago.categoria, pago.monto, pago.fecha_vencimiento, pago.creado_por, pago.cuenta_id]
   );
 
   const proxima = siguienteFecha(pago.fecha_vencimiento, pago.recurrencia);
@@ -212,9 +223,13 @@ async function marcarPagado(id, usuarioActual) {
   return getById(id);
 }
 
-async function getHistorial(usuarioActual, { limit = 100, empresa, usuarioFiltro } = {}) {
+async function getHistorial(usuarioActual, { limit = 100, empresa, usuarioFiltro, cuentaId } = {}) {
   const condiciones = [];
   const params = [];
+  if (cuentaId !== undefined) {
+    params.push(cuentaId);
+    condiciones.push(`historial_pagos.cuenta_id = $${params.length}`);
+  }
   if (empresa) {
     params.push(empresa);
     condiciones.push(`LOWER(historial_pagos.empresa) = LOWER($${params.length})`);

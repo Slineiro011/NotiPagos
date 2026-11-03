@@ -18,21 +18,25 @@ router.get(
       pendientes: paymentsService.getPendientes,
     };
     const obtener = porFiltro[filtro] || paymentsService.getAll;
-    res.json(await obtener(empresa || undefined, req.usuario, usuario || undefined));
+    if (obtener === paymentsService.getAll) {
+      res.json(await obtener(req.usuario.cuenta_id, empresa || undefined, req.usuario, usuario || undefined));
+    } else {
+      res.json(await obtener(empresa || undefined, req.usuario, usuario || undefined, req.usuario.cuenta_id));
+    }
   })
 );
 
 router.get(
   "/empresas/lista",
   wrap(async (req, res) => {
-    res.json(await paymentsService.getEmpresas());
+    res.json(await paymentsService.getEmpresas(req.usuario.cuenta_id));
   })
 );
 
 router.get(
   "/historial",
   wrap(async (req, res) => {
-    res.json(await paymentsService.getHistorial(req.usuario));
+    res.json(await paymentsService.getHistorial(req.usuario, { cuentaId: req.usuario.cuenta_id }));
   })
 );
 
@@ -41,8 +45,13 @@ router.get(
   wrap(async (req, res) => {
     const { empresa, usuario } = req.query;
     const [pendientes, pagados] = await Promise.all([
-      paymentsService.getPendientes(empresa || undefined, req.usuario, usuario || undefined),
-      paymentsService.getHistorial(req.usuario, { limit: 2000, empresa: empresa || undefined, usuarioFiltro: usuario || undefined }),
+      paymentsService.getPendientes(empresa || undefined, req.usuario, usuario || undefined, req.usuario.cuenta_id),
+      paymentsService.getHistorial(req.usuario, {
+        limit: 2000,
+        empresa: empresa || undefined,
+        usuarioFiltro: usuario || undefined,
+        cuentaId: req.usuario.cuenta_id,
+      }),
     ]);
     const buffer = await generarExcelPagos({ pendientes, pagados });
     res.setHeader(
@@ -60,7 +69,7 @@ router.get(
 router.get(
   "/:id",
   wrap(async (req, res) => {
-    const pago = await paymentsService.getById(Number(req.params.id), req.usuario);
+    const pago = await paymentsService.getById(Number(req.params.id), req.usuario, req.usuario.cuenta_id);
     if (!pago) return res.status(404).json({ error: "Pago no encontrado" });
     res.json(pago);
   })
@@ -73,7 +82,7 @@ router.post(
     if (!nombre || !fecha_vencimiento) {
       return res.status(400).json({ error: "nombre y fecha_vencimiento son obligatorios" });
     }
-    const pago = await paymentsService.create(req.body, req.usuario);
+    const pago = await paymentsService.create(req.body, req.usuario, req.usuario.cuenta_id);
     res.status(201).json(pago);
   })
 );
@@ -81,7 +90,7 @@ router.post(
 router.put(
   "/:id",
   wrap(async (req, res) => {
-    const pago = await paymentsService.update(Number(req.params.id), req.body, req.usuario);
+    const pago = await paymentsService.update(Number(req.params.id), req.body, req.usuario, req.usuario.cuenta_id);
     if (!pago) return res.status(404).json({ error: "Pago no encontrado" });
     res.json(pago);
   })
@@ -90,7 +99,7 @@ router.put(
 router.post(
   "/:id/pagado",
   wrap(async (req, res) => {
-    const pago = await paymentsService.marcarPagado(Number(req.params.id), req.usuario);
+    const pago = await paymentsService.marcarPagado(Number(req.params.id), req.usuario, req.usuario.cuenta_id);
     if (!pago) return res.status(404).json({ error: "Pago no encontrado" });
     res.json(pago);
   })
@@ -99,7 +108,7 @@ router.post(
 router.delete(
   "/:id",
   wrap(async (req, res) => {
-    const ok = await paymentsService.remove(Number(req.params.id), req.usuario);
+    const ok = await paymentsService.remove(Number(req.params.id), req.usuario, req.usuario.cuenta_id);
     if (!ok) return res.status(404).json({ error: "Pago no encontrado" });
     res.status(204).end();
   })

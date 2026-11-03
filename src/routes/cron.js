@@ -16,8 +16,8 @@ router.all("/revisar", async (req, res) => {
     return res.sendStatus(403);
   }
   try {
-    const resultado = await scheduler.ejecutarRevisionDiaria();
-    res.json({ ok: true, ...resultado });
+    const resultado = await scheduler.revisarTodasLasCuentas();
+    res.json({ ok: true, resultado });
   } catch (err) {
     console.error("Error ejecutando revision via cron externo:", err);
     res.status(500).json({ ok: false, error: err.message });

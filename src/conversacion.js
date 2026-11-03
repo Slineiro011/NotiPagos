@@ -50,7 +50,7 @@ const FILTROS = {
 
 async function consultar(numero, filtro, textoOriginal, empresa, usuarioActual) {
   const entrada = FILTROS[filtro] || FILTROS.pendientes;
-  const pagos = await entrada.obtener(empresa || undefined, usuarioActual);
+  const pagos = await entrada.obtener(empresa || undefined, usuarioActual, undefined, usuarioActual.cuenta_id);
   const datos = pagos.map(datosParaGemini);
   const contexto = empresa ? `${entrada.descripcion} de la empresa "${empresa}"` : entrada.descripcion;
   const titulo = empresa ? `${entrada.titulo} (${empresa})` : entrada.titulo;
@@ -64,9 +64,9 @@ async function consultar(numero, filtro, textoOriginal, empresa, usuarioActual) 
 }
 
 async function marcarPagado(numero, id, usuarioActual) {
-  const pago = await paymentsService.getById(id, usuarioActual);
+  const pago = await paymentsService.getById(id, usuarioActual, usuarioActual.cuenta_id);
   if (!pago) return responder(numero, `No encontré ningún pago con el número #${id}.`);
-  await paymentsService.marcarPagado(id, usuarioActual);
+  await paymentsService.marcarPagado(id, usuarioActual, usuarioActual.cuenta_id);
   return responderConRedaccion(
     numero,
     "La contadora acaba de marcar este pago como realizado. Confirmaselo de forma breve y natural.",
@@ -76,9 +76,9 @@ async function marcarPagado(numero, id, usuarioActual) {
 }
 
 async function eliminarPago(numero, id, usuarioActual) {
-  const pago = await paymentsService.getById(id, usuarioActual);
+  const pago = await paymentsService.getById(id, usuarioActual, usuarioActual.cuenta_id);
   if (!pago) return responder(numero, `No encontré ningún pago con el número #${id}.`);
-  await paymentsService.remove(id, usuarioActual);
+  await paymentsService.remove(id, usuarioActual, usuarioActual.cuenta_id);
   return responder(numero, `🗑️ Eliminé el pago: *${pago.nombre}*.`);
 }
 
@@ -123,7 +123,8 @@ async function crearPagoFinal(numero, datos, usuarioActual) {
       dias_aviso: datos.dias_aviso,
       notas: "",
     },
-    usuarioActual
+    usuarioActual,
+    usuarioActual.cuenta_id
   );
 
   return responderConRedaccion(
@@ -160,7 +161,7 @@ async function continuarBorrador(numero, borrador, texto, usuarioActual) {
 
   let resultado;
   try {
-    const empresasConocidas = campoActual.campo === "empresa" ? await paymentsService.getEmpresas() : [];
+    const empresasConocidas = campoActual.campo === "empresa" ? await paymentsService.getEmpresas(usuarioActual.cuenta_id) : [];
     resultado = await gemini.interpretarCampo(campoActual.campo, texto, empresasConocidas);
   } catch (err) {
     console.error("Error interpretando respuesta de campo pendiente:", err.message);
@@ -187,25 +188,25 @@ async function continuarBorrador(numero, borrador, texto, usuarioActual) {
   return crearPagoFinal(numero, actualizado, usuarioActual);
 }
 
-async function activarRecordatorios(numero) {
-  await settingsService.agregarNumero(numero);
-  const hora = (await settingsService.get("hora_recordatorio")) || "08:00";
+async function activarRecordatorios(numero, cuentaId) {
+  await settingsService.agregarNumero(cuentaId, numero);
+  const hora = (await settingsService.get(cuentaId, "hora_recordatorio")) || "08:00";
   return responder(
     numero,
     `✅ Listo, quedaste registrada para recibir los recordatorios de pago todos los días a las ${hora}. Si quieres cambiar la hora, solo dime algo como "avísame a las 7:30".`
   );
 }
 
-async function desactivarRecordatorios(numero) {
-  await settingsService.quitarNumero(numero);
+async function desactivarRecordatorios(numero, cuentaId) {
+  await settingsService.quitarNumero(cuentaId, numero);
   return responder(numero, "🔕 Listo, ya no te voy a mandar recordatorios automáticos a este número. Puedes seguir preguntándome por los pagos cuando quieras.");
 }
 
-async function configurarHora(numero, hora) {
+async function configurarHora(numero, hora, cuentaId) {
   if (!/^\d{2}:\d{2}$/.test(hora || "")) {
     return responder(numero, "No logré entender la hora. ¿Puedes decirla de nuevo? (ej: 'avísame a las 8am' o 'cambia la hora a las 19:30')");
   }
-  await settingsService.set("hora_recordatorio", hora);
+  await settingsService.set(cuentaId, "hora_recordatorio", hora);
   return responder(numero, `⏰ Listo, los recordatorios diarios ahora salen a las ${hora}.`);
 }
 
@@ -246,7 +247,7 @@ async function manejarMensaje(numero, textoOriginal) {
 
   let intencion;
   try {
-    const empresasConocidas = await paymentsService.getEmpresas();
+    const empresasConocidas = await paymentsService.getEmpresas(usuarioActual.cuenta_id);
     intencion = await gemini.interpretarMensaje(texto, empresasConocidas);
   } catch (err) {
     console.error("Error interpretando mensaje con Gemini:", err.message);
@@ -265,13 +266,13 @@ async function manejarMensaje(numero, textoOriginal) {
       return eliminarPago(numero, intencion.id, usuarioActual);
     case "activar_recordatorios":
       if (!esJefe) return responder(numero, SOLO_JEFE);
-      return activarRecordatorios(numero);
+      return activarRecordatorios(numero, usuarioActual.cuenta_id);
     case "desactivar_recordatorios":
       if (!esJefe) return responder(numero, SOLO_JEFE);
-      return desactivarRecordatorios(numero);
+      return desactivarRecordatorios(numero, usuarioActual.cuenta_id);
     case "configurar_hora":
       if (!esJefe) return responder(numero, SOLO_JEFE);
-      return configurarHora(numero, intencion.hora);
+      return configurarHora(numero, intencion.hora, usuarioActual.cuenta_id);
     case "fuera_de_tema":
       return responder(numero, "Lo siento, no puedo ayudarte con eso 🙏 Solo puedo ayudarte con los pagos de la empresa y sus recordatorios. Escribe *ayuda* si quieres ver qué puedo hacer.");
     default:

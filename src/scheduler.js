@@ -5,12 +5,13 @@ const paymentsService = require("./services/paymentsService");
 const settingsService = require("./services/settingsService");
 const usuariosService = require("./services/usuariosService");
 const dispositivosService = require("./services/dispositivosService");
+const cuentasService = require("./services/cuentasService");
 const whatsapp = require("./whatsapp");
 const push = require("./push");
 
-async function ejecutarRevisionDiaria() {
+async function ejecutarRevisionDiaria(cuentaId) {
   const hoy = dayjs().format("YYYY-MM-DD");
-  const pendientes = await paymentsService.getPendientes();
+  const pendientes = await paymentsService.getPendientes(undefined, undefined, undefined, cuentaId);
 
   const aAvisar = [];
   for (const pago of pendientes) {
@@ -23,7 +24,7 @@ async function ejecutarRevisionDiaria() {
 
   if (!aAvisar.length) return { avisados: 0 };
 
-  const numerosGlobales = await settingsService.getNumerosWhatsapp();
+  const numerosGlobales = await settingsService.getNumerosWhatsapp(cuentaId);
 
   let avisados = 0;
   for (const pago of aAvisar) {
@@ -64,24 +65,42 @@ async function ejecutarRevisionDiaria() {
   return { avisados };
 }
 
-function iniciar() {
-  let ultimaEjecucion = null;
+// Cada cuenta tiene su propia hora de recordatorio, asi que se recuerda la
+// ultima ejecucion por cuenta (no una sola marca global). Se comparte entre
+// el cron interno y el endpoint /api/cron/revisar (disparado por un cron
+// externo) para que no se avise dos veces en el mismo minuto.
+const ultimaEjecucionPorCuenta = new Map();
 
-  cron.schedule("* * * * *", async () => {
-    const horaConfigurada = (await settingsService.get("hora_recordatorio")) || "08:00";
-    const horaActual = dayjs().format("HH:mm");
-    const marca = horaActual + dayjs().format("YYYY-MM-DD");
-    if (horaActual !== horaConfigurada || ultimaEjecucion === marca) return;
-    ultimaEjecucion = marca;
+/** Revisa todas las cuentas y ejecuta la revision diaria de la(s) que les toque a esta hora. */
+async function revisarTodasLasCuentas() {
+  const horaActual = dayjs().format("HH:mm");
+  const marcaDeHoy = horaActual + dayjs().format("YYYY-MM-DD");
+  const cuentaIds = await cuentasService.listarIds();
 
+  const resultados = {};
+  for (const cuentaId of cuentaIds) {
     try {
-      await ejecutarRevisionDiaria();
+      const horaConfigurada = (await settingsService.get(cuentaId, "hora_recordatorio")) || "08:00";
+      if (horaActual !== horaConfigurada || ultimaEjecucionPorCuenta.get(cuentaId) === marcaDeHoy) continue;
+      ultimaEjecucionPorCuenta.set(cuentaId, marcaDeHoy);
+      resultados[cuentaId] = await ejecutarRevisionDiaria(cuentaId);
     } catch (err) {
-      console.error("Error en la revision diaria de pagos:", err);
+      console.error(`Error en la revision diaria de pagos (cuenta ${cuentaId}):`, err);
+    }
+  }
+  return resultados;
+}
+
+function iniciar() {
+  cron.schedule("* * * * *", async () => {
+    try {
+      await revisarTodasLasCuentas();
+    } catch (err) {
+      console.error("Error listando cuentas para el programador:", err);
     }
   });
 
   console.log("Programador de recordatorios iniciado (revision interna cada minuto).");
 }
 
-module.exports = { iniciar, ejecutarRevisionDiaria };
+module.exports = { iniciar, ejecutarRevisionDiaria, revisarTodasLasCuentas };

@@ -10,7 +10,7 @@ const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
 router.get(
   "/",
   wrap(async (req, res) => {
-    res.json(await settingsService.getAll());
+    res.json(await settingsService.getAll(req.usuario.cuenta_id));
   })
 );
 
@@ -22,8 +22,8 @@ router.put(
     const cambios = {};
     if (numeros_whatsapp !== undefined) cambios.numeros_whatsapp = numeros_whatsapp;
     if (hora_recordatorio !== undefined) cambios.hora_recordatorio = hora_recordatorio;
-    await settingsService.setMany(cambios);
-    res.json(await settingsService.getAll());
+    await settingsService.setMany(req.usuario.cuenta_id, cambios);
+    res.json(await settingsService.getAll(req.usuario.cuenta_id));
   })
 );
 
@@ -31,7 +31,7 @@ router.post(
   "/whatsapp/prueba",
   requireJefe,
   wrap(async (req, res) => {
-    const numeros = await settingsService.getNumerosWhatsapp();
+    const numeros = await settingsService.getNumerosWhatsapp(req.usuario.cuenta_id);
     if (!numeros.length) return res.status(400).json({ error: "No hay numeros configurados" });
     const resultados = await whatsapp.enviarATodos(
       numeros,
