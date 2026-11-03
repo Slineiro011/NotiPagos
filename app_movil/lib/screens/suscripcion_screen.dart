@@ -54,6 +54,11 @@ class _SuscripcionScreenState extends State<SuscripcionScreen> {
       _error = null;
     });
     try {
+      if (!SuscripcionService.compraDisponibleEnEstaPlataforma) {
+        setState(() => _error = 'La suscripción desde iPhone estará disponible muy pronto. '
+            'Mientras tanto puedes suscribirte desde un celular Android con la misma cuenta.');
+        return;
+      }
       if (!await SuscripcionService.disponible()) {
         setState(() => _error = 'La tienda no está disponible en este dispositivo.');
         return;
@@ -84,6 +89,32 @@ class _SuscripcionScreenState extends State<SuscripcionScreen> {
         _comprando = false;
         _error = mensajeError(e);
       });
+    }
+  }
+
+  Future<void> _restaurar() async {
+    setState(() {
+      _comprando = true;
+      _error = null;
+    });
+    try {
+      await SuscripcionService.restaurar();
+      // Si no habia nada que restaurar la tienda no avisa: se suelta el boton
+      // despues de un momento con un mensaje.
+      await Future.delayed(const Duration(seconds: 8));
+      if (mounted && _comprando) {
+        setState(() {
+          _comprando = false;
+          _error = 'No se encontró ninguna suscripción activa en esta cuenta de la tienda.';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _comprando = false;
+          _error = mensajeError(e);
+        });
+      }
     }
   }
 
@@ -145,6 +176,11 @@ class _SuscripcionScreenState extends State<SuscripcionScreen> {
                           : const Text('Suscribirme'),
                     ),
                     const SizedBox(height: 10),
+                    if (SuscripcionService.compraDisponibleEnEstaPlataforma)
+                      TextButton(
+                        onPressed: (_cargando || _comprando) ? null : _restaurar,
+                        child: const Text('Restaurar compra'),
+                      ),
                     TextButton(
                       onPressed: (_cargando || _comprando) ? null : _cargarProducto,
                       child: const Text('Reintentar'),

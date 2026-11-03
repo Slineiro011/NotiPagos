@@ -172,6 +172,56 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
     }
   }
 
+  Future<void> _eliminarCuenta() async {
+    final passwordCtrl = TextEditingController();
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Eliminar mi cuenta'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _esJefe
+                  ? 'Se borrará tu usuario. Si eres el único jefe, se borrará también la cuenta completa con '
+                      'todos sus pagos, historial y usuarios. Esto no se puede deshacer.\n\n'
+                      'Si tienes una suscripción, cancélala también en la tienda (Google Play o App Store) '
+                      'para que no te siga cobrando.'
+                  : 'Se borrará tu usuario y dejarás de recibir recordatorios. Los pagos que registraste '
+                      'se quedan en la cuenta de tu empresa. Esto no se puede deshacer.',
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: passwordCtrl,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Tu contraseña', border: OutlineInputBorder()),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    final password = passwordCtrl.text;
+    passwordCtrl.dispose();
+    if (confirmar != true) return;
+
+    try {
+      await ApiService.eliminarCuenta(password);
+      widget.onSalir();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('No se pudo eliminar: ${mensajeError(e)}')));
+      }
+    }
+  }
+
   Future<void> _elegirHora() async {
     final seleccionada = await showTimePicker(context: context, initialTime: _hora);
     if (seleccionada != null) setState(() => _hora = seleccionada);
@@ -411,7 +461,12 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
               side: const BorderSide(color: Colors.red),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: _eliminarCuenta,
+            child: const Text('Eliminar mi cuenta', style: TextStyle(color: Colors.red)),
+          ),
+          const SizedBox(height: 16),
           Center(
             child: Text(
               'ActivoX v1.9.0+20 · Desarrollado por SlinMask Labs',

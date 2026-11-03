@@ -3,6 +3,7 @@ const paymentsService = require("./services/paymentsService");
 const settingsService = require("./services/settingsService");
 const borradoresService = require("./services/borradoresService");
 const usuariosService = require("./services/usuariosService");
+const cuentasService = require("./services/cuentasService");
 const whatsapp = require("./whatsapp");
 const gemini = require("./gemini");
 
@@ -223,6 +224,10 @@ async function manejarMensaje(numero, textoOriginal) {
       numero,
       "Tu número todavía no está registrado para usar este asistente. Pídele a la persona encargada que te dé acceso."
     );
+  }
+  const cuenta = await cuentasService.getConAccesoActualizado(usuarioActual.cuenta_id);
+  if (!cuenta || !cuentasService.tieneAcceso(cuenta)) {
+    return responder(numero, "🔒 Tu mes de prueba gratis terminó. Suscríbete desde la app para seguir usando el asistente.");
   }
   const esJefe = usuarioActual.rol === "jefe";
 

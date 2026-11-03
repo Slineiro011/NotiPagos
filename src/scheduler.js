@@ -37,7 +37,7 @@ async function ejecutarRevisionDiaria(cuentaId) {
     const numerosDestino = creador?.telefono ? [creador.telefono] : numerosGlobales;
     const tokensDestino = creador
       ? await dispositivosService.getTokensDeUsuario(creador.usuario)
-      : await dispositivosService.getTokens();
+      : await dispositivosService.getTokensDeCuenta(cuentaId);
 
     // Canal 1: WhatsApp. Recordatorio automatico proactivo, usa plantilla aprobada
     // (funciona fuera de la ventana de 24h).
@@ -83,6 +83,10 @@ async function revisarTodasLasCuentas() {
       const horaConfigurada = (await settingsService.get(cuentaId, "hora_recordatorio")) || "08:00";
       if (horaActual !== horaConfigurada || ultimaEjecucionPorCuenta.get(cuentaId) === marcaDeHoy) continue;
       ultimaEjecucionPorCuenta.set(cuentaId, marcaDeHoy);
+      // Las cuentas sin prueba ni suscripcion vigente no reciben recordatorios
+      // (cada uno cuesta WhatsApp/push).
+      const cuenta = await cuentasService.getConAccesoActualizado(cuentaId);
+      if (!cuenta || !cuentasService.tieneAcceso(cuenta)) continue;
       resultados[cuentaId] = await ejecutarRevisionDiaria(cuentaId);
     } catch (err) {
       console.error(`Error en la revision diaria de pagos (cuenta ${cuentaId}):`, err);

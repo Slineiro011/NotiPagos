@@ -28,6 +28,10 @@ function requireAuth(req, res, next) {
 
   try {
     const payload = jwt.verify(token, SECRETO || "cambia-esto");
+    // Los tokens emitidos antes de que existieran las cuentas no traen
+    // cuenta_id: se obliga a iniciar sesion de nuevo en vez de dejar pasar
+    // consultas sin cuenta.
+    if (!payload.cuenta_id) return res.status(401).json({ error: "Sesion invalida o expirada" });
     req.usuario = {
       usuario: payload.sub,
       nombre: payload.nombre,
@@ -57,7 +61,7 @@ async function requireSuscripcionActiva(req, res, next) {
   try {
     const cuentaId = req.usuario?.cuenta_id;
     if (!cuentaId) return res.status(401).json({ error: "No autenticado" });
-    const cuenta = await cuentasService.getById(cuentaId);
+    const cuenta = await cuentasService.getConAccesoActualizado(cuentaId);
     if (!cuenta || !cuentasService.tieneAcceso(cuenta)) {
       return res.status(402).json({
         error: "Tu mes de prueba gratis termino. Suscribete para seguir usando la app.",

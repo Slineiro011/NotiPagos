@@ -68,6 +68,13 @@ router.post(
       return res.status(400).json({ error: "purchaseToken es obligatorio" });
     }
 
+    // Sin esto, una sola compra (compartiendo el token) desbloquearia
+    // cualquier cantidad de cuentas.
+    const duena = await cuentasService.getPorCompra(purchaseToken);
+    if (duena && duena.id !== req.usuario.cuenta_id) {
+      return res.status(409).json({ error: "Esta compra ya está vinculada a otra cuenta" });
+    }
+
     let resultado;
     try {
       resultado = await comprasService.verificarSuscripcionAndroid(purchaseToken);
@@ -146,6 +153,25 @@ router.put(
     // el cliente no quede con datos de sesion desactualizados.
     const token = generarToken(actualizado);
     res.json({ ...actualizado, token });
+  })
+);
+
+// Eliminar la propia cuenta desde la app (Apple y Google lo exigen cuando hay
+// registro propio). Pide la contraseña para que no se haga por accidente.
+// Si quien la borra es el ultimo jefe, se borra la cuenta entera con todos
+// sus pagos; si no, solo su usuario (los pagos son de la empresa).
+router.delete(
+  "/cuenta",
+  requireAuth,
+  wrap(async (req, res) => {
+    const { password } = req.body || {};
+    if (!password) return res.status(400).json({ error: "Escribe tu contraseña para confirmar" });
+    const verificado = await usuariosService.verificarPassword(req.usuario.usuario, password);
+    // 403 y no 401: la app trata 401 como "sesion vencida" y cerraria la sesion.
+    if (!verificado) return res.status(403).json({ error: "Contraseña incorrecta" });
+
+    const resultado = await usuariosService.eliminarPropio(verificado);
+    res.json({ ok: true, ...resultado });
   })
 );
 

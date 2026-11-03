@@ -98,6 +98,55 @@ async function cambiarUsuario(usuarioActual, nuevoUsuario) {
   }
 }
 
+/**
+ * Borra al usuario que lo pide. Si es el ultimo jefe de su cuenta, la cuenta
+ * se queda sin quien la administre, asi que se borra entera (usuarios,
+ * pagos, historial, configuracion y dispositivos). Todo en una transaccion.
+ */
+async function eliminarPropio(usuario) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query(
+      "SELECT COUNT(*)::int AS n FROM usuarios WHERE cuenta_id = $1 AND rol = 'jefe' AND usuario <> $2",
+      [usuario.cuenta_id, usuario.usuario]
+    );
+    const borrarCuenta = usuario.rol === "jefe" && rows[0].n === 0;
+
+    if (borrarCuenta) {
+      const cuenta = usuario.cuenta_id;
+      await client.query(
+        "DELETE FROM avisos_enviados WHERE pago_id IN (SELECT id FROM pagos WHERE cuenta_id = $1)",
+        [cuenta]
+      );
+      await client.query(
+        "DELETE FROM dispositivos WHERE usuario IN (SELECT usuario FROM usuarios WHERE cuenta_id = $1)",
+        [cuenta]
+      );
+      await client.query(
+        "DELETE FROM borradores_pago WHERE numero IN (SELECT telefono FROM usuarios WHERE cuenta_id = $1 AND telefono IS NOT NULL)",
+        [cuenta]
+      );
+      await client.query("DELETE FROM historial_pagos WHERE cuenta_id = $1", [cuenta]);
+      await client.query("DELETE FROM pagos WHERE cuenta_id = $1", [cuenta]);
+      await client.query("DELETE FROM configuracion WHERE cuenta_id = $1", [cuenta]);
+      await client.query("DELETE FROM usuarios WHERE cuenta_id = $1", [cuenta]);
+      await client.query("DELETE FROM cuentas WHERE id = $1", [cuenta]);
+    } else {
+      await client.query("DELETE FROM dispositivos WHERE usuario = $1", [usuario.usuario]);
+      if (usuario.telefono) await client.query("DELETE FROM borradores_pago WHERE numero = $1", [usuario.telefono]);
+      await client.query("DELETE FROM usuarios WHERE usuario = $1", [usuario.usuario]);
+    }
+    await client.query("COMMIT");
+    return { cuentaEliminada: borrarCuenta };
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 async function verificarPassword(usuario, passwordPlano) {
   const fila = await getByUsuario(usuario);
   if (!fila) return null;
@@ -114,6 +163,7 @@ module.exports = {
   crear,
   actualizar,
   eliminar,
+  eliminarPropio,
   cambiarUsuario,
   verificarPassword,
 };

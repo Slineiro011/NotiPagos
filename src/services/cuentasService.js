@@ -1,5 +1,6 @@
 const dayjs = require("dayjs");
 const { pool } = require("../db");
+const comprasService = require("./comprasService");
 
 const DIAS_PRUEBA = 30;
 
@@ -33,8 +34,40 @@ function tieneAcceso(cuenta) {
   return dayjs().isBefore(dayjs(cuenta.suscripcion_vence));
 }
 
-async function estado(cuentaId) {
+/**
+ * Devuelve la cuenta, pero si su suscripcion de Android ya paso la fecha de
+ * vencimiento guardada, primero le pregunta a Google: las renovaciones
+ * mensuales conservan el mismo purchaseToken y solo mueven la fecha, que el
+ * servidor no se entera de otra forma. Si Google dice que ya no esta activa,
+ * se desactiva para no volver a consultar en cada peticion.
+ */
+async function getConAccesoActualizado(cuentaId) {
   const cuenta = await getById(cuentaId);
+  if (!cuenta || tieneAcceso(cuenta)) return cuenta;
+  if (!cuenta.suscripcion_activa || cuenta.plataforma_pago !== "android" || !cuenta.id_compra) return cuenta;
+
+  let resultado;
+  try {
+    resultado = await comprasService.verificarSuscripcionAndroid(cuenta.id_compra);
+  } catch (err) {
+    // Google no respondio: se niega por ahora sin desactivar, y se reintenta en la proxima peticion.
+    console.error(`No se pudo revisar la renovacion de la cuenta ${cuentaId}:`, err.message);
+    return cuenta;
+  }
+  if (resultado.activa) {
+    return activarSuscripcion(cuentaId, { vence: resultado.vence, plataforma: "android", idCompra: cuenta.id_compra });
+  }
+  return desactivarSuscripcion(cuentaId);
+}
+
+/** La cuenta (si existe) que ya uso esta compra de la tienda. */
+async function getPorCompra(idCompra) {
+  const { rows } = await pool.query("SELECT * FROM cuentas WHERE id_compra = $1", [idCompra]);
+  return rows[0] || null;
+}
+
+async function estado(cuentaId) {
+  const cuenta = await getConAccesoActualizado(cuentaId);
   if (!cuenta) return null;
   return {
     enPrueba: dayjs().isBefore(pruebaVenceEn(cuenta)),
@@ -66,6 +99,8 @@ async function desactivarSuscripcion(cuentaId) {
 module.exports = {
   crear,
   getById,
+  getConAccesoActualizado,
+  getPorCompra,
   listarIds,
   estado,
   tieneAcceso,

@@ -22,4 +22,15 @@ async function getTokensDeUsuario(usuario) {
   return rows.map((r) => r.token);
 }
 
-module.exports = { registrar, eliminar, getTokens, getTokensDeUsuario };
+// Los dispositivos registrados sin usuario son de antes del login, cuando
+// todo era de la empresa original (la primera cuenta).
+async function getTokensDeCuenta(cuentaId) {
+  const { rows } = await pool.query(
+    `SELECT d.token FROM dispositivos d LEFT JOIN usuarios u ON u.usuario = d.usuario
+     WHERE u.cuenta_id = $1 OR (d.usuario IS NULL AND $1 = (SELECT MIN(id) FROM cuentas))`,
+    [cuentaId]
+  );
+  return rows.map((r) => r.token);
+}
+
+module.exports = { registrar, eliminar, getTokens, getTokensDeUsuario, getTokensDeCuenta };

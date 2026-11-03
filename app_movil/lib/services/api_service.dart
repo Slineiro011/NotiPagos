@@ -208,6 +208,20 @@ class ApiService {
     await prefs.setString(_clavePrefUsuario, (data['usuario'] ?? '') as String);
   }
 
+  /// Borra el propio usuario (o la cuenta entera, si es el ultimo jefe) y
+  /// cierra la sesion local. Devuelve true si se borro la cuenta completa.
+  static Future<bool> eliminarCuenta(String password) async {
+    final res = await _cliente.delete(
+      await _uri('/auth/cuenta'),
+      headers: await _headers(),
+      body: jsonEncode({'password': password}),
+    );
+    _verificar(res);
+    final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+    await cerrarSesion();
+    return data['cuentaEliminada'] == true;
+  }
+
   static Future<Uri> _uri(String path, [Map<String, String>? query]) async {
     final base = await getBaseUrl();
     return Uri.parse('$base$path').replace(queryParameters: query);

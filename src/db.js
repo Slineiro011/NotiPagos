@@ -135,6 +135,9 @@ async function migrar() {
     ALTER TABLE configuracion ALTER COLUMN cuenta_id SET NOT NULL;
     ALTER TABLE configuracion DROP CONSTRAINT IF EXISTS configuracion_pkey;
     ALTER TABLE configuracion ADD CONSTRAINT configuracion_pkey PRIMARY KEY (cuenta_id, clave);
+
+    -- Una misma compra de la tienda solo puede desbloquear una cuenta.
+    CREATE UNIQUE INDEX IF NOT EXISTS cuentas_id_compra_idx ON cuentas (id_compra) WHERE id_compra IS NOT NULL;
   `);
 }
 

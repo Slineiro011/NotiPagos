@@ -43,10 +43,16 @@ class SuscripcionService {
           try {
             final token = compra.verificationData.serverVerificationData;
             await ApiService.verificarCompra(plataforma: Platform.isIOS ? 'ios' : 'android', purchaseToken: token);
+            // Solo se cierra la compra en la tienda cuando el servidor ya la
+            // acepto: si la verificacion falla, queda abierta para reintentar
+            // con "Restaurar compra" (y si nunca se verifica, Google la
+            // reembolsa sola a los 3 dias en vez de cobrar sin desbloquear).
+            if (compra.pendingCompletePurchase) await _iap.completePurchase(compra);
             onVerificada();
           } catch (e) {
             onError(mensajeError(e));
           }
+          continue;
         }
 
         if (compra.pendingCompletePurchase) await _iap.completePurchase(compra);
@@ -58,6 +64,15 @@ class SuscripcionService {
     final parametros = PurchaseParam(productDetails: producto);
     await _iap.buyNonConsumable(purchaseParam: parametros);
   }
+
+  /// Vuelve a pedirle a la tienda las compras de esta cuenta de Google/Apple;
+  /// llegan por [escuchar] con estado "restored" y se verifican igual.
+  static Future<void> restaurar() => _iap.restorePurchases();
+
+  /// La verificacion de compras de iPhone (App Store) todavia no existe en el
+  /// servidor: mientras tanto no se deja comprar desde iOS, para no cobrar
+  /// sin poder desbloquear la cuenta.
+  static bool get compraDisponibleEnEstaPlataforma => !Platform.isIOS;
 
   static void detener() => _suscripcionStream?.cancel();
 }
