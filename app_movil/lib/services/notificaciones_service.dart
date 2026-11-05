@@ -72,6 +72,10 @@ class NotificacionesService {
   /// llego con la app abierta). Lo atiende PagosScreen y lo vuelve a null.
   static final ValueNotifier<int?> pagoPorAbrir = ValueNotifier<int?>(null);
 
+  /// Igual que [pagoPorAbrir] pero para tareas (recordatorio normal, sin
+  /// alarma). Lo atiende TareasScreen.
+  static final ValueNotifier<int?> tareaPorAbrir = ValueNotifier<int?>(null);
+
   static Future<void> detenerAlarma() async {
     try {
       await _canalAlarma.invokeMethod('detener');
@@ -94,22 +98,43 @@ class NotificacionesService {
     // que aqui se dispara la alarma nativa manualmente. En iOS tampoco se
     // muestra el aviso del sistema con la app abierta; suena el AppDelegate.
     FirebaseMessaging.onMessage.listen((mensaje) {
+      // Las tareas no usan alarma: con la app abierta basta con marcarla para
+      // que TareasScreen la muestre, nada de sonido en bucle.
+      final tareaId = _pagoIdDe(mensaje.data['tareaId']);
+      if (tareaId != null) {
+        tareaPorAbrir.value = tareaId;
+        return;
+      }
       final titulo = (mensaje.data['titulo'] as String?) ?? '🔔 Recordatorio de pago';
       final cuerpo = (mensaje.data['cuerpo'] as String?) ?? 'Tienes un pago pendiente.';
       _iniciarAlarmaNativa(titulo: titulo, cuerpo: cuerpo, pagoId: _pagoIdDe(mensaje.data['pagoId']));
     });
 
     // iOS: el usuario toco el aviso del sistema (con la app en segundo plano
-    // o cerrada). En Android el aviso lo pinta el AlarmService nativo, que
-    // avisa por el canal (abajo).
+    // o cerrada). En Android el aviso de pagos lo pinta el AlarmService
+    // nativo, que avisa por el canal (abajo); el de tareas es una
+    // notificacion normal del sistema, este listener si la atiende en ambas
+    // plataformas.
     FirebaseMessaging.onMessageOpenedApp.listen((mensaje) {
-      pagoPorAbrir.value = _pagoIdDe(mensaje.data['pagoId']);
+      final tareaId = _pagoIdDe(mensaje.data['tareaId']);
+      if (tareaId != null) {
+        tareaPorAbrir.value = tareaId;
+      } else {
+        pagoPorAbrir.value = _pagoIdDe(mensaje.data['pagoId']);
+      }
     });
     // Con limite: en algunos casos (ej. simulador) esta llamada nunca responde.
     final mensajeInicial = await mensajeria
         .getInitialMessage()
         .timeout(const Duration(seconds: 5), onTimeout: () => null);
-    if (mensajeInicial != null) pagoPorAbrir.value = _pagoIdDe(mensajeInicial.data['pagoId']);
+    if (mensajeInicial != null) {
+      final tareaId = _pagoIdDe(mensajeInicial.data['tareaId']);
+      if (tareaId != null) {
+        tareaPorAbrir.value = tareaId;
+      } else {
+        pagoPorAbrir.value = _pagoIdDe(mensajeInicial.data['pagoId']);
+      }
+    }
 
     if (Platform.isAndroid) {
       _canalAlarma.setMethodCallHandler((llamada) async {

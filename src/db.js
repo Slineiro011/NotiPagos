@@ -138,6 +138,30 @@ async function migrar() {
 
     -- Una misma compra de la tienda solo puede desbloquear una cuenta.
     CREATE UNIQUE INDEX IF NOT EXISTS cuentas_id_compra_idx ON cuentas (id_compra) WHERE id_compra IS NOT NULL;
+
+    -- Tareas: recordatorios sin monto (ej. "todos los jueves", "vence el 3 de
+    -- marzo"), separados de los pagos. Usan notificacion normal, no la alarma
+    -- en bucle de los pagos.
+    CREATE TABLE IF NOT EXISTS tareas (
+      id SERIAL PRIMARY KEY,
+      cuenta_id INTEGER NOT NULL,
+      nombre TEXT NOT NULL,
+      fecha_vencimiento DATE NOT NULL,
+      recurrencia TEXT NOT NULL DEFAULT 'ninguna',
+      dias_aviso INTEGER NOT NULL DEFAULT 1,
+      estado TEXT NOT NULL DEFAULT 'pendiente',
+      notas TEXT DEFAULT '',
+      creado_por TEXT,
+      creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS tareas_cuenta_idx ON tareas (cuenta_id);
+
+    CREATE TABLE IF NOT EXISTS avisos_tareas_enviados (
+      id SERIAL PRIMARY KEY,
+      tarea_id INTEGER NOT NULL,
+      fecha DATE NOT NULL,
+      UNIQUE(tarea_id, fecha)
+    );
   `);
 }
 

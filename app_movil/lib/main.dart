@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'screens/pagos_screen.dart';
+import 'screens/tareas_screen.dart';
 import 'screens/historial_screen.dart';
 import 'screens/configuracion_screen.dart';
 import 'screens/usuarios_screen.dart';
@@ -151,8 +152,9 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void initState() {
     super.initState();
-    // Al tocar un recordatorio se muestra la pestaña de Pagos, que lo abre.
+    // Al tocar un recordatorio se muestra la pestaña correspondiente, que lo abre.
     NotificacionesService.pagoPorAbrir.addListener(_irAPagos);
+    NotificacionesService.tareaPorAbrir.addListener(_irATareas);
     ApiService.esJefe().then((esJefe) {
       if (mounted) setState(() {
         _esJefe = esJefe;
@@ -164,6 +166,7 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void dispose() {
     NotificacionesService.pagoPorAbrir.removeListener(_irAPagos);
+    NotificacionesService.tareaPorAbrir.removeListener(_irATareas);
     super.dispose();
   }
 
@@ -173,21 +176,29 @@ class _HomeShellState extends State<HomeShell> {
     }
   }
 
+  void _irATareas() {
+    if (NotificacionesService.tareaPorAbrir.value != null && _indice != 1) {
+      setState(() => _indice = 1);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_cargandoRol) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final titulos = ['💳 Pagos', 'Historial', if (_esJefe) 'Usuarios', 'WhatsApp / Configuración'];
+    final titulos = ['💳 Pagos', '📌 Tareas', 'Historial', if (_esJefe) 'Usuarios', 'WhatsApp / Configuración'];
     final pantallas = [
       const PagosScreen(),
+      const TareasScreen(),
       const HistorialScreen(),
       if (_esJefe) const UsuariosScreen(),
       ConfiguracionScreen(onSalir: widget.onSalir),
     ];
     final destinos = [
       const NavigationDestination(icon: Icon(Icons.payments_outlined), selectedIcon: Icon(Icons.payments), label: 'Pagos'),
+      const NavigationDestination(icon: Icon(Icons.task_alt_outlined), selectedIcon: Icon(Icons.task_alt), label: 'Tareas'),
       const NavigationDestination(icon: Icon(Icons.history_outlined), selectedIcon: Icon(Icons.history), label: 'Historial'),
       if (_esJefe)
         const NavigationDestination(icon: Icon(Icons.people_outline), selectedIcon: Icon(Icons.people), label: 'Usuarios'),

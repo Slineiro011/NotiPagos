@@ -87,6 +87,7 @@ const List<String> categoriasDisponibles = [
 
 const List<String> recurrenciasDisponibles = [
   'ninguna',
+  'semanal',
   'mensual',
   'bimestral',
   'trimestral',

@@ -2,6 +2,7 @@ const cron = require("node-cron");
 const dayjs = require("dayjs");
 
 const paymentsService = require("./services/paymentsService");
+const tareasService = require("./services/tareasService");
 const settingsService = require("./services/settingsService");
 const usuariosService = require("./services/usuariosService");
 const dispositivosService = require("./services/dispositivosService");
@@ -9,8 +10,7 @@ const cuentasService = require("./services/cuentasService");
 const whatsapp = require("./whatsapp");
 const push = require("./push");
 
-async function ejecutarRevisionDiaria(cuentaId) {
-  const hoy = dayjs().format("YYYY-MM-DD");
+async function revisarPagos(cuentaId, hoy) {
   const pendientes = await paymentsService.getPendientes(undefined, undefined, undefined, cuentaId);
 
   const aAvisar = [];
@@ -21,8 +21,7 @@ async function ejecutarRevisionDiaria(cuentaId) {
       aAvisar.push(pago);
     }
   }
-
-  if (!aAvisar.length) return { avisados: 0 };
+  if (!aAvisar.length) return 0;
 
   const numerosGlobales = await settingsService.getNumerosWhatsapp(cuentaId);
 
@@ -62,7 +61,49 @@ async function ejecutarRevisionDiaria(cuentaId) {
       avisados++;
     }
   }
-  return { avisados };
+  return avisados;
+}
+
+/**
+ * Recordatorios de tareas: solo notificacion push normal (sin WhatsApp y sin
+ * la alarma en bucle de los pagos, a proposito - ver `push.enviarATokens`
+ * con `alarma: false`).
+ */
+async function revisarTareas(cuentaId, hoy) {
+  const pendientes = await tareasService.getProximos(cuentaId);
+
+  let avisadas = 0;
+  for (const tarea of pendientes) {
+    const dias = dayjs(tarea.fecha_vencimiento).startOf("day").diff(dayjs().startOf("day"), "day");
+    const dentroDeVentana = dias <= (tarea.dias_aviso ?? 1);
+    if (!dentroDeVentana || (await tareasService.yaSeAviso(tarea.id, hoy))) continue;
+
+    const creador = tarea.creado_por ? await usuariosService.getByUsuario(tarea.creado_por) : null;
+    const tokensDestino = creador
+      ? await dispositivosService.getTokensDeUsuario(creador.usuario)
+      : await dispositivosService.getTokensDeCuenta(cuentaId);
+    if (!tokensDestino.length) continue;
+
+    const resultadoPush = await push.enviarATokens(tokensDestino, {
+      titulo: "📌 Recordatorio",
+      cuerpo: tarea.nombre,
+      datos: { tareaId: String(tarea.id) },
+      alarma: false,
+    });
+    console.log(`[push] Resultado para la tarea #${tarea.id}:`, resultadoPush);
+    if (resultadoPush.enviados > 0) {
+      await tareasService.registrarAviso(tarea.id, hoy);
+      avisadas++;
+    }
+  }
+  return avisadas;
+}
+
+async function ejecutarRevisionDiaria(cuentaId) {
+  const hoy = dayjs().format("YYYY-MM-DD");
+  const avisados = await revisarPagos(cuentaId, hoy);
+  const tareasAvisadas = await revisarTareas(cuentaId, hoy);
+  return { avisados, tareasAvisadas };
 }
 
 // Cada cuenta tiene su propia hora de recordatorio, asi que se recuerda la

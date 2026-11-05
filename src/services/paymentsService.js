@@ -1,15 +1,11 @@
 const dayjs = require("dayjs");
 const { pool } = require("../db");
-
-const MESES_POR_RECURRENCIA = {
-  mensual: 1,
-  bimestral: 2,
-  trimestral: 3,
-  semestral: 6,
-  anual: 12,
-};
-
-const RECURRENCIAS = ["ninguna", ...Object.keys(MESES_POR_RECURRENCIA)];
+const {
+  RECURRENCIAS,
+  siguienteFecha,
+  esVisibilidadRestringida,
+  puedeFiltrarPorUsuario,
+} = require("../utils/recordatorios");
 
 // Se agrega en todas las consultas que devuelven pagos, para poder mostrar
 // quien lo creo (nombre legible, no solo el usuario tecnico).
@@ -30,19 +26,6 @@ function normalizarFila(row) {
     monto: Number(row.monto),
     fecha_vencimiento: dayjs(row.fecha_vencimiento).format("YYYY-MM-DD"),
   };
-}
-
-/**
- * Si usuarioActual viene definido y NO es "jefe", solo puede ver lo que el
- * mismo creo. Sin usuarioActual (llamadas internas: scheduler, bot de
- * sistema) o con rol "jefe", no se filtra por dueno.
- */
-function esVisibilidadRestringida(usuarioActual) {
-  return !!usuarioActual && usuarioActual.rol !== "jefe";
-}
-
-function puedeFiltrarPorUsuario(usuarioActual) {
-  return !usuarioActual || usuarioActual.rol === "jefe";
 }
 
 async function getAll(cuentaId, empresa, usuarioActual, usuarioFiltro) {
@@ -194,12 +177,6 @@ async function remove(id, usuarioActual, cuentaId) {
   if (!actual) return false;
   await pool.query("DELETE FROM pagos WHERE id = $1", [id]);
   return true;
-}
-
-function siguienteFecha(fecha, recurrencia) {
-  const meses = MESES_POR_RECURRENCIA[recurrencia];
-  if (!meses) return null;
-  return dayjs(fecha).add(meses, "month").format("YYYY-MM-DD");
 }
 
 async function marcarPagado(id, usuarioActual, cuentaId) {

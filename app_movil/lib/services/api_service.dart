@@ -5,6 +5,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/pago.dart';
+import '../models/tarea.dart';
 
 const String _urlPorDefecto = 'https://notipagos.onrender.com/api';
 const String _clavePrefUrl = 'api_base_url';
@@ -361,6 +362,44 @@ class ApiService {
 
   static Future<void> eliminarPago(int id) async {
     final res = await _cliente.delete(await _uri('/pagos/$id'), headers: await _headers());
+    _verificar(res);
+  }
+
+  // ---------- Tareas (recordatorios sin monto, notificacion normal) ----------
+
+  static Future<List<Tarea>> getTareas({String? usuario}) async {
+    final query = {if (usuario != null && usuario.isNotEmpty) 'usuario': usuario};
+    final res = await _cliente.get(await _uri('/tareas', query), headers: await _headers());
+    _verificar(res);
+    final lista = jsonDecode(utf8.decode(res.bodyBytes)) as List;
+    return lista.map((e) => Tarea.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  static Future<Tarea> getTarea(int id) async {
+    final res = await _cliente.get(await _uri('/tareas/$id'), headers: await _headers());
+    _verificar(res);
+    return Tarea.fromJson(jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
+  }
+
+  static Future<Tarea> crearTarea(Tarea tarea) async {
+    final res = await _cliente.post(await _uri('/tareas'), headers: await _headers(), body: jsonEncode(tarea.toJson()));
+    _verificar(res);
+    return Tarea.fromJson(jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
+  }
+
+  static Future<Tarea> actualizarTarea(int id, Tarea tarea) async {
+    final res = await _cliente.put(await _uri('/tareas/$id'), headers: await _headers(), body: jsonEncode(tarea.toJson()));
+    _verificar(res);
+    return Tarea.fromJson(jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
+  }
+
+  static Future<void> marcarTareaHecha(int id) async {
+    final res = await _cliente.post(await _uri('/tareas/$id/hecha'), headers: await _headers());
+    _verificar(res);
+  }
+
+  static Future<void> eliminarTarea(int id) async {
+    final res = await _cliente.delete(await _uri('/tareas/$id'), headers: await _headers());
     _verificar(res);
   }
 

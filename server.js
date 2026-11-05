@@ -4,6 +4,7 @@ const path = require("path");
 
 const { migrar } = require("./src/db");
 const pagosRouter = require("./src/routes/pagos");
+const tareasRouter = require("./src/routes/tareas");
 const configuracionRouter = require("./src/routes/configuracion");
 const webhookRouter = require("./src/routes/webhook");
 const cronRouter = require("./src/routes/cron");
@@ -21,6 +22,7 @@ app.use(express.static(path.join(__dirname, "public")));
 
 app.use("/api/auth", authRouter);
 app.use("/api/pagos", requireAuth, requireSuscripcionActiva, pagosRouter);
+app.use("/api/tareas", requireAuth, requireSuscripcionActiva, tareasRouter);
 app.use("/api/configuracion", requireAuth, configuracionRouter);
 app.use("/api/usuarios", requireAuth, requireJefe, usuariosRouter);
 app.use("/webhook/whatsapp", webhookRouter);

@@ -1,0 +1,54 @@
+class Tarea {
+  final int id;
+  final String nombre;
+  final String fechaVencimiento; // "YYYY-MM-DD"
+  final String recurrencia;
+  final int diasAviso;
+  final String estado;
+  final String notas;
+  final String? creadoPor;
+  final String? creadoPorNombre;
+
+  Tarea({
+    required this.id,
+    required this.nombre,
+    required this.fechaVencimiento,
+    required this.recurrencia,
+    required this.diasAviso,
+    required this.estado,
+    required this.notas,
+    this.creadoPor,
+    this.creadoPorNombre,
+  });
+
+  factory Tarea.fromJson(Map<String, dynamic> json) {
+    return Tarea(
+      id: json['id'] as int,
+      nombre: json['nombre'] as String,
+      fechaVencimiento: json['fecha_vencimiento'] as String,
+      recurrencia: (json['recurrencia'] ?? 'ninguna') as String,
+      diasAviso: (json['dias_aviso'] is num) ? (json['dias_aviso'] as num).toInt() : 1,
+      estado: (json['estado'] ?? 'pendiente') as String,
+      notas: (json['notas'] ?? '') as String,
+      creadoPor: json['creado_por'] as String?,
+      creadoPorNombre: json['creado_por_nombre'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'nombre': nombre,
+      'fecha_vencimiento': fechaVencimiento,
+      'recurrencia': recurrencia,
+      'dias_aviso': diasAviso,
+      'notas': notas,
+    };
+  }
+
+  int get diasRestantes {
+    final hoy = DateTime.now();
+    final hoySinHora = DateTime(hoy.year, hoy.month, hoy.day);
+    final venc = DateTime.parse(fechaVencimiento);
+    return venc.difference(hoySinHora).inDays;
+  }
+}

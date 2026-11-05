@@ -38,36 +38,55 @@ async function enviarATodos({ titulo, cuerpo, datos = {} }) {
   return enviarATokens(tokens, { titulo, cuerpo, datos });
 }
 
-/** Envia una notificacion push solo a los tokens indicados. Nunca lanza. */
-async function enviarATokens(tokens, { titulo, cuerpo, datos = {} }) {
+/**
+ * Envia una notificacion push solo a los tokens indicados. Nunca lanza.
+ *
+ * `alarma` (true por defecto, para no cambiar el comportamiento de los
+ * pagos): con `true` manda un mensaje de "solo datos" con `titulo`/`cuerpo`
+ * en `data`, que es lo que NotiPagosMessagingService (Android) detecta para
+ * arrancar la alarma en bucle, y en iOS usa el sonido alarma_pago.caf. Con
+ * `false` (ej. recordatorios de tareas) manda una notificacion normal del
+ * sistema: no toca `data.titulo`/`data.cuerpo` (asi el nativo nunca arranca
+ * la alarma) y usa el sonido por defecto en iOS.
+ */
+async function enviarATokens(tokens, { titulo, cuerpo, datos = {}, alarma = true }) {
   const app = obtenerApp();
   if (!app) return { enviados: 0, motivo: "sin_credencial" };
   if (!tokens.length) return { enviados: 0, motivo: "sin_dispositivos" };
 
-  // Mensaje de "solo datos" (sin bloque "notification"): asi Android siempre
-  // lo entrega a la app (aunque este cerrada) en vez de mostrar el aviso
-  // generico del sistema, que no permite sonido en bucle tipo alarma.
-  const mensaje = {
-    tokens,
-    data: Object.fromEntries(
-      Object.entries({ ...datos, titulo, cuerpo }).map(([k, v]) => [k, String(v)])
-    ),
-    android: { priority: "high" },
-    // iOS no entrega de forma confiable los mensajes de "solo datos" con la
-    // app cerrada, asi que para iPhone se manda un aviso visible con el
-    // sonido de alarma (~29 s, el maximo que permite iOS) y nivel
-    // "time-sensitive" para que atraviese los modos de concentracion.
-    apns: {
-      headers: { "apns-priority": "10", "apns-push-type": "alert" },
-      payload: {
-        aps: {
-          alert: { title: titulo, body: cuerpo },
-          sound: "alarma_pago.caf",
-          "interruption-level": "time-sensitive",
+  const mensaje = alarma
+    ? {
+        tokens,
+        // Mensaje de "solo datos" (sin bloque "notification"): asi Android
+        // siempre lo entrega a la app (aunque este cerrada) en vez de mostrar
+        // el aviso generico del sistema, que no permite sonido en bucle tipo
+        // alarma.
+        data: Object.fromEntries(
+          Object.entries({ ...datos, titulo, cuerpo }).map(([k, v]) => [k, String(v)])
+        ),
+        android: { priority: "high" },
+        // iOS no entrega de forma confiable los mensajes de "solo datos" con la
+        // app cerrada, asi que para iPhone se manda un aviso visible con el
+        // sonido de alarma (~29 s, el maximo que permite iOS) y nivel
+        // "time-sensitive" para que atraviese los modos de concentracion.
+        apns: {
+          headers: { "apns-priority": "10", "apns-push-type": "alert" },
+          payload: {
+            aps: {
+              alert: { title: titulo, body: cuerpo },
+              sound: "alarma_pago.caf",
+              "interruption-level": "time-sensitive",
+            },
+          },
         },
-      },
-    },
-  };
+      }
+    : {
+        tokens,
+        notification: { title: titulo, body: cuerpo },
+        data: Object.fromEntries(Object.entries(datos).map(([k, v]) => [k, String(v)])),
+        android: { priority: "high" },
+        apns: { payload: { aps: { sound: "default" } } },
+      };
 
   try {
     const resultado = await getMessaging(app).sendEachForMulticast(mensaje);
