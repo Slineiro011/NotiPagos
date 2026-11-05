@@ -469,7 +469,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
           const SizedBox(height: 16),
           Center(
             child: Text(
-              'ActivoX v1.9.0+20 · Desarrollado por SlinMask Labs',
+              'ActivoX v1.10.0+21 · Desarrollado por SlinMask Labs',
               style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
             ),
           ),
