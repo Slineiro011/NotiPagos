@@ -23,7 +23,9 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
   }
 
   void _recargar() {
-    setState(() => _future = ApiService.getUsuarios());
+    setState(() {
+      _future = ApiService.getUsuarios();
+    });
   }
 
   Future<void> _abrirFormulario({Map<String, dynamic>? usuario}) async {

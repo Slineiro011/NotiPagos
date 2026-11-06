@@ -31,7 +31,9 @@ class _TareasScreenState extends State<TareasScreen> {
   }
 
   void _cargar() {
-    setState(() => _futureTareas = ApiService.getTareas());
+    setState(() {
+      _futureTareas = ApiService.getTareas();
+    });
   }
 
   Future<void> _abrirFormulario({Tarea? tarea}) async {

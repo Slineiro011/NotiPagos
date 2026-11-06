@@ -51,7 +51,18 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('💳 Pagos de la empresa', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                // El logo trae fondo blanco: va en un recuadro redondeado para
+                // que tambien se vea bien en el tema oscuro.
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(28),
+                  child: Image.asset(
+                    'assets/icon/icon.png',
+                    width: 150,
+                    height: 150,
+                    cacheWidth: 450,
+                    semanticLabel: 'ActivoX',
+                  ),
+                ),
                 const SizedBox(height: 24),
                 TextField(
                   controller: _usuarioCtrl,

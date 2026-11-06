@@ -23,7 +23,9 @@ class _HistorialScreenState extends State<HistorialScreen> {
   }
 
   Future<void> _recargar() async {
-    setState(() => _future = ApiService.getHistorial());
+    setState(() {
+      _future = ApiService.getHistorial();
+    });
     await _future;
   }
 
