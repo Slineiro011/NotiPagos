@@ -234,7 +234,9 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
       ),
     );
     final password = passwordCtrl.text;
-    passwordCtrl.dispose();
+    // No se destruye aqui: el dialogo sigue animando su cierre un par de
+    // frames mas y seguiria usando el controller (crash "used after being
+    // disposed"). Al ser de un solo uso, el recolector de basura se encarga.
     if (confirmar != true) return;
 
     try {
