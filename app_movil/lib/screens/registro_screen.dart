@@ -12,10 +12,13 @@ class RegistroScreen extends StatefulWidget {
   State<RegistroScreen> createState() => _RegistroScreenState();
 }
 
+final RegExp _correoValido = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
+
 class _RegistroScreenState extends State<RegistroScreen> {
   final _nombreCtrl = TextEditingController();
   final _usuarioCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
+  final _correoCtrl = TextEditingController();
   final _telefonoCtrl = TextEditingController();
   bool _cargando = false;
   String? _error;
@@ -25,13 +28,21 @@ class _RegistroScreenState extends State<RegistroScreen> {
     _nombreCtrl.dispose();
     _usuarioCtrl.dispose();
     _passwordCtrl.dispose();
+    _correoCtrl.dispose();
     _telefonoCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _registrar() async {
-    if (_nombreCtrl.text.trim().isEmpty || _usuarioCtrl.text.trim().isEmpty || _passwordCtrl.text.isEmpty) {
-      setState(() => _error = 'Completa nombre, usuario y contraseña.');
+    if (_nombreCtrl.text.trim().isEmpty ||
+        _usuarioCtrl.text.trim().isEmpty ||
+        _passwordCtrl.text.isEmpty ||
+        _correoCtrl.text.trim().isEmpty) {
+      setState(() => _error = 'Completa nombre, usuario, correo y contraseña.');
+      return;
+    }
+    if (!_correoValido.hasMatch(_correoCtrl.text.trim())) {
+      setState(() => _error = 'El correo no es válido.');
       return;
     }
     setState(() {
@@ -43,6 +54,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
         usuario: _usuarioCtrl.text.trim(),
         password: _passwordCtrl.text,
         nombre: _nombreCtrl.text.trim(),
+        correo: _correoCtrl.text.trim(),
         telefono: _telefonoCtrl.text.trim().isEmpty ? null : _telefonoCtrl.text.trim(),
       );
       widget.onRegistroExitoso();
@@ -87,6 +99,17 @@ class _RegistroScreenState extends State<RegistroScreen> {
                   controller: _passwordCtrl,
                   decoration: const InputDecoration(labelText: 'Contraseña', border: OutlineInputBorder()),
                   obscureText: true,
+                  textInputAction: TextInputAction.next,
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: _correoCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Correo',
+                    border: OutlineInputBorder(),
+                    hintText: 'Para recuperar tu contraseña si la olvidas',
+                  ),
+                  keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
                 ),
                 const SizedBox(height: 14),

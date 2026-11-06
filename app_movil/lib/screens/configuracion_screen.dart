@@ -20,6 +20,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
   final _nombreCtrl = TextEditingController();
   final _usuarioCtrl = TextEditingController();
   final _telefonoCtrl = TextEditingController();
+  final _correoCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   TimeOfDay _hora = const TimeOfDay(hour: 8, minute: 0);
   bool _cargando = true;
@@ -27,6 +28,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
   bool _guardandoNombre = false;
   bool _guardandoUsuario = false;
   bool _guardandoTelefono = false;
+  bool _guardandoCorreo = false;
   bool _guardandoPassword = false;
   bool _esJefe = false;
   String _nombre = '';
@@ -44,6 +46,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
     _nombreCtrl.dispose();
     _usuarioCtrl.dispose();
     _telefonoCtrl.dispose();
+    _correoCtrl.dispose();
     _passwordCtrl.dispose();
     super.dispose();
   }
@@ -58,6 +61,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
       _nombreCtrl.text = (perfil['nombre'] as String?) ?? '';
       _usuarioCtrl.text = (perfil['usuario'] as String?) ?? '';
       _telefonoCtrl.text = (perfil['telefono'] as String?) ?? '';
+      _correoCtrl.text = (perfil['correo'] as String?) ?? '';
     } catch (_) {
       // si falla, el campo queda vacio y se puede reintentar guardando
     }
@@ -148,6 +152,27 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
       }
     } finally {
       if (mounted) setState(() => _guardandoTelefono = false);
+    }
+  }
+
+  Future<void> _guardarCorreo() async {
+    final correo = _correoCtrl.text.trim();
+    if (correo.isNotEmpty && !RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(correo)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('El correo no es válido')));
+      return;
+    }
+    setState(() => _guardandoCorreo = true);
+    try {
+      await ApiService.actualizarPerfil(correo: correo);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Correo guardado ✔')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al guardar: ${mensajeError(e)}')));
+      }
+    } finally {
+      if (mounted) setState(() => _guardandoCorreo = false);
     }
   }
 
@@ -326,6 +351,26 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                   child: _guardandoTelefono
                       ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
                       : const Text('Guardar número'),
+                ),
+                const SizedBox(height: 20),
+                const Text('Tu correo', style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 6),
+                const Text(
+                  'Para recuperar tu contraseña si la olvidas.',
+                  style: TextStyle(color: Colors.grey, fontSize: 12.5),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _correoCtrl,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton(
+                  onPressed: _guardandoCorreo ? null : _guardarCorreo,
+                  child: _guardandoCorreo
+                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Guardar correo'),
                 ),
                 const SizedBox(height: 20),
                 const Text('Cambiar contraseña', style: TextStyle(fontWeight: FontWeight.w600)),

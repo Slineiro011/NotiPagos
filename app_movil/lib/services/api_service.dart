@@ -112,15 +112,29 @@ class ApiService {
     required String usuario,
     required String password,
     required String nombre,
+    required String correo,
     String? telefono,
   }) async {
     final res = await _cliente.post(
       await _uri('/auth/registro'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'usuario': usuario, 'password': password, 'nombre': nombre, 'telefono': telefono}),
+      body: jsonEncode({'usuario': usuario, 'password': password, 'nombre': nombre, 'correo': correo, 'telefono': telefono}),
     );
     if (res.statusCode != 201) throw Exception(_mensajeDe(res, 'No se pudo crear la cuenta'));
     await _guardarSesion(jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>, usuario);
+  }
+
+  /// Pide el enlace de recuperacion por correo. El servidor siempre responde
+  /// "ok" (exista o no el correo) para no revelar que correos estan registrados.
+  static Future<void> olvidePassword(String correo) async {
+    final res = await _cliente.post(
+      await _uri('/auth/olvide-password'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'correo': correo}),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw Exception(_mensajeDe(res, 'No se pudo enviar el correo de recuperación'));
+    }
   }
 
   static Future<void> _guardarSesion(Map<String, dynamic> data, String usuarioRespaldo) async {
@@ -186,14 +200,21 @@ class ApiService {
     return jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
   }
 
-  /// Actualiza nombre, usuario, telefono y/o contraseña propios. El servidor
-  /// devuelve un token nuevo (el usuario o el nombre pudieron cambiar), asi
-  /// que se guarda la sesion local con esos datos actualizados.
-  static Future<void> actualizarPerfil({String? nombre, String? usuario, String? telefono, String? password}) async {
+  /// Actualiza nombre, usuario, telefono, correo y/o contraseña propios. El
+  /// servidor devuelve un token nuevo (el usuario o el nombre pudieron
+  /// cambiar), asi que se guarda la sesion local con esos datos actualizados.
+  static Future<void> actualizarPerfil({
+    String? nombre,
+    String? usuario,
+    String? telefono,
+    String? correo,
+    String? password,
+  }) async {
     final cambios = <String, dynamic>{};
     if (nombre != null) cambios['nombre'] = nombre;
     if (usuario != null) cambios['usuario'] = usuario;
     if (telefono != null) cambios['telefono'] = telefono;
+    if (correo != null) cambios['correo'] = correo;
     if (password != null && password.isNotEmpty) cambios['password'] = password;
     final res = await _cliente.put(
       await _uri('/auth/perfil'),

@@ -68,6 +68,48 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _olvidePassword() async {
+    final correoCtrl = TextEditingController();
+    final mensajero = ScaffoldMessenger.of(context);
+    final enviar = await showDialog<bool>(
+      context: context,
+      builder: (contexto) => AlertDialog(
+        title: const Text('¿Olvidaste tu contraseña?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Escribe el correo con el que creaste tu cuenta. Te mandamos un enlace para poner una nueva contraseña.'),
+            const SizedBox(height: 14),
+            TextField(
+              controller: correoCtrl,
+              autofocus: true,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(labelText: 'Correo', border: OutlineInputBorder()),
+              onSubmitted: (_) => Navigator.pop(contexto, true),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(contexto, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(contexto, true), child: const Text('Enviar')),
+        ],
+      ),
+    );
+    final correo = correoCtrl.text.trim();
+    correoCtrl.dispose();
+    if (enviar != true || correo.isEmpty) return;
+
+    try {
+      await ApiService.olvidePassword(correo);
+      mensajero.showSnackBar(const SnackBar(
+        content: Text('Si el correo está registrado, te llegará un enlace para restablecer tu contraseña.'),
+        duration: Duration(seconds: 6),
+      ));
+    } catch (e) {
+      mensajero.showSnackBar(SnackBar(content: Text(mensajeError(e))));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     const estiloEnlace = TextStyle(color: Colors.white70, fontSize: 12.5);
@@ -145,6 +187,14 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                                 obscureText: !_verPassword,
                                 onSubmitted: (_) => _entrar(),
+                              ),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton(
+                                  onPressed: _cargando ? null : _olvidePassword,
+                                  style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 36)),
+                                  child: const Text('¿Olvidaste tu contraseña?', style: TextStyle(fontSize: 12.5)),
+                                ),
                               ),
                               if (_error != null) ...[
                                 const SizedBox(height: 10),

@@ -94,6 +94,22 @@ async function migrar() {
     ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS telefono TEXT;
     CREATE UNIQUE INDEX IF NOT EXISTS usuarios_telefono_idx ON usuarios (telefono) WHERE telefono IS NOT NULL;
 
+    -- Correo: antes no existia, asi que las cuentas viejas lo tienen en NULL
+    -- hasta que lo agreguen en Configuracion. Sin el no se puede usar "Olvide
+    -- mi contraseña" (src/routes/auth.js).
+    ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS correo TEXT;
+    CREATE UNIQUE INDEX IF NOT EXISTS usuarios_correo_idx ON usuarios (correo) WHERE correo IS NOT NULL;
+
+    -- Tokens de un solo uso para restablecer la contraseña por correo (Resend).
+    CREATE TABLE IF NOT EXISTS restablecimientos_password (
+      id SERIAL PRIMARY KEY,
+      usuario TEXT NOT NULL,
+      token TEXT UNIQUE NOT NULL,
+      expira_en TIMESTAMPTZ NOT NULL,
+      usado BOOLEAN NOT NULL DEFAULT false,
+      creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
     -- Cuentas: cada una es una empresa/persona independiente, duena de sus
     -- propios usuarios, pagos e historial. Antes del registro propio, todo el
     -- sistema era de una sola empresa compartida; la migracion de abajo mete

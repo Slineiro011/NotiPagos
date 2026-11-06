@@ -7,6 +7,12 @@ function limpiarTelefono(telefono) {
   return limpio || null;
 }
 
+function limpiarCorreo(correo) {
+  if (!correo) return null;
+  const limpio = String(correo).trim().toLowerCase();
+  return limpio || null;
+}
+
 async function getByUsuario(usuario) {
   const { rows } = await pool.query("SELECT * FROM usuarios WHERE usuario = $1", [usuario]);
   return rows[0] || null;
@@ -19,6 +25,13 @@ async function getByTelefono(telefono) {
   return rows[0] || null;
 }
 
+async function getByCorreo(correo) {
+  const limpio = limpiarCorreo(correo);
+  if (!limpio) return null;
+  const { rows } = await pool.query("SELECT * FROM usuarios WHERE correo = $1", [limpio]);
+  return rows[0] || null;
+}
+
 async function listar(cuentaId) {
   const { rows } = await pool.query(
     "SELECT id, usuario, nombre, rol, telefono, creado_en FROM usuarios WHERE cuenta_id = $1 ORDER BY creado_en ASC",
@@ -27,36 +40,38 @@ async function listar(cuentaId) {
   return rows;
 }
 
-async function crear(usuario, nombre, passwordPlano, { rol = "usuario", telefono = null, cuentaId } = {}) {
+async function crear(usuario, nombre, passwordPlano, { rol = "usuario", telefono = null, correo = null, cuentaId } = {}) {
   if (!cuentaId) throw new Error("cuentaId es obligatorio para crear un usuario");
   const hash = await bcrypt.hash(passwordPlano, 10);
   const rolFinal = rol === "jefe" ? "jefe" : "usuario";
   const { rows } = await pool.query(
-    `INSERT INTO usuarios (usuario, nombre, password_hash, rol, telefono, cuenta_id) VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO usuarios (usuario, nombre, password_hash, rol, telefono, correo, cuenta_id) VALUES ($1, $2, $3, $4, $5, $6, $7)
      ON CONFLICT (usuario) DO UPDATE SET
        password_hash = excluded.password_hash,
        nombre = excluded.nombre,
        rol = excluded.rol,
-       telefono = excluded.telefono
-     RETURNING id, usuario, nombre, rol, telefono, cuenta_id`,
-    [usuario, nombre || usuario, hash, rolFinal, limpiarTelefono(telefono), cuentaId]
+       telefono = excluded.telefono,
+       correo = excluded.correo
+     RETURNING id, usuario, nombre, rol, telefono, correo, cuenta_id`,
+    [usuario, nombre || usuario, hash, rolFinal, limpiarTelefono(telefono), limpiarCorreo(correo), cuentaId]
   );
   return rows[0];
 }
 
-/** Edita nombre/rol/telefono y, opcionalmente, la contraseña (si se pasa). No crea usuarios nuevos. */
-async function actualizar(usuario, { nombre, rol, telefono, password } = {}) {
+/** Edita nombre/rol/telefono/correo y, opcionalmente, la contraseña (si se pasa). No crea usuarios nuevos. */
+async function actualizar(usuario, { nombre, rol, telefono, correo, password } = {}) {
   const actual = await getByUsuario(usuario);
   if (!actual) return null;
 
   const nuevoHash = password ? await bcrypt.hash(password, 10) : actual.password_hash;
   const rolFinal = rol === "jefe" || rol === "usuario" ? rol : actual.rol;
   const telefonoFinal = telefono !== undefined ? limpiarTelefono(telefono) : actual.telefono;
+  const correoFinal = correo !== undefined ? limpiarCorreo(correo) : actual.correo;
 
   const { rows } = await pool.query(
-    `UPDATE usuarios SET nombre=$1, rol=$2, telefono=$3, password_hash=$4 WHERE usuario=$5
-     RETURNING id, usuario, nombre, rol, telefono, cuenta_id`,
-    [nombre ?? actual.nombre, rolFinal, telefonoFinal, nuevoHash, usuario]
+    `UPDATE usuarios SET nombre=$1, rol=$2, telefono=$3, correo=$4, password_hash=$5 WHERE usuario=$6
+     RETURNING id, usuario, nombre, rol, telefono, correo, cuenta_id`,
+    [nombre ?? actual.nombre, rolFinal, telefonoFinal, correoFinal, nuevoHash, usuario]
   );
   return rows[0];
 }
@@ -158,13 +173,14 @@ async function verificarPassword(usuario, passwordPlano) {
   if (!fila) return null;
   const ok = await bcrypt.compare(passwordPlano, fila.password_hash);
   return ok
-    ? { id: fila.id, usuario: fila.usuario, nombre: fila.nombre, rol: fila.rol, telefono: fila.telefono, cuenta_id: fila.cuenta_id }
+    ? { id: fila.id, usuario: fila.usuario, nombre: fila.nombre, rol: fila.rol, telefono: fila.telefono, correo: fila.correo, cuenta_id: fila.cuenta_id }
     : null;
 }
 
 module.exports = {
   getByUsuario,
   getByTelefono,
+  getByCorreo,
   listar,
   crear,
   actualizar,

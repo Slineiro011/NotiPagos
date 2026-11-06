@@ -2,7 +2,11 @@ const express = require("express");
 const usuariosService = require("../services/usuariosService");
 const cuentasService = require("../services/cuentasService");
 const comprasService = require("../services/comprasService");
+const resetPasswordService = require("../services/resetPasswordService");
+const emailService = require("../services/emailService");
 const { generarToken, requireAuth } = require("../auth");
+
+const URL_BASE = process.env.URL_BASE || "https://notipagos.onrender.com";
 
 const router = express.Router();
 
@@ -11,23 +15,31 @@ const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
 // Registro propio: cualquier persona crea su propia cuenta (queda como jefe
 // de su propia empresa, aunque sea de una sola persona), sin depender de que
 // un jefe le asigne el usuario. Empieza con el mes de prueba gratis.
+const CORREO_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 router.post(
   "/registro",
   wrap(async (req, res) => {
-    const { usuario, password, nombre, telefono } = req.body;
-    if (!usuario || !password) {
-      return res.status(400).json({ error: "usuario y password son obligatorios" });
+    const { usuario, password, nombre, telefono, correo } = req.body;
+    if (!usuario || !password || !correo) {
+      return res.status(400).json({ error: "usuario, password y correo son obligatorios" });
     }
     if (password.length < 6) {
       return res.status(400).json({ error: "La contraseña debe tener al menos 6 caracteres" });
     }
+    if (!CORREO_VALIDO.test(correo)) {
+      return res.status(400).json({ error: "El correo no es valido" });
+    }
     const existente = await usuariosService.getByUsuario(usuario);
     if (existente) return res.status(409).json({ error: "Ya existe un usuario con ese nombre" });
+    const correoExistente = await usuariosService.getByCorreo(correo);
+    if (correoExistente) return res.status(409).json({ error: "Ya existe una cuenta con ese correo" });
 
     const cuenta = await cuentasService.crear(nombre ? `Empresa de ${nombre}` : "Mi empresa");
     const creado = await usuariosService.crear(usuario, nombre, password, {
       rol: "jefe",
       telefono,
+      correo,
       cuentaId: cuenta.id,
     });
 
@@ -38,6 +50,7 @@ router.post(
       usuario: creado.usuario,
       rol: creado.rol,
       telefono: creado.telefono,
+      correo: creado.correo,
     });
   })
 );
@@ -126,7 +139,7 @@ router.get(
   wrap(async (req, res) => {
     const fila = await usuariosService.getByUsuario(req.usuario.usuario);
     if (!fila) return res.status(404).json({ error: "Usuario no encontrado" });
-    res.json({ usuario: fila.usuario, nombre: fila.nombre, rol: fila.rol, telefono: fila.telefono });
+    res.json({ usuario: fila.usuario, nombre: fila.nombre, rol: fila.rol, telefono: fila.telefono, correo: fila.correo });
   })
 );
 
@@ -134,7 +147,7 @@ router.put(
   "/perfil",
   requireAuth,
   wrap(async (req, res) => {
-    const { nombre, telefono, password, usuario } = req.body;
+    const { nombre, telefono, correo, password, usuario } = req.body;
     let usuarioActual = req.usuario.usuario;
 
     const nuevoUsuario = typeof usuario === "string" ? usuario.trim() : "";
@@ -146,13 +159,71 @@ router.put(
       usuarioActual = nuevoUsuario;
     }
 
-    const actualizado = await usuariosService.actualizar(usuarioActual, { nombre, telefono, password });
+    if (typeof correo === "string" && correo.trim() && !CORREO_VALIDO.test(correo.trim())) {
+      return res.status(400).json({ error: "El correo no es valido" });
+    }
+    if (typeof correo === "string" && correo.trim()) {
+      const correoExistente = await usuariosService.getByCorreo(correo);
+      if (correoExistente && correoExistente.usuario !== usuarioActual) {
+        return res.status(409).json({ error: "Ya existe una cuenta con ese correo" });
+      }
+    }
+
+    const actualizado = await usuariosService.actualizar(usuarioActual, { nombre, telefono, correo, password });
     if (!actualizado) return res.status(404).json({ error: "Usuario no encontrado" });
 
     // El usuario y/o el nombre pudieron cambiar: se reemite el token para que
     // el cliente no quede con datos de sesion desactualizados.
     const token = generarToken(actualizado);
     res.json({ ...actualizado, token });
+  })
+);
+
+// Pide el correo y, si existe una cuenta con el, manda un enlace de un solo
+// uso (valido 30 min) para poner una contraseña nueva. La respuesta es
+// siempre la misma exista o no el correo, para no revelar que correos estan
+// registrados.
+router.post(
+  "/olvide-password",
+  wrap(async (req, res) => {
+    const { correo } = req.body;
+    if (!correo) return res.status(400).json({ error: "correo es obligatorio" });
+
+    const usuario = await usuariosService.getByCorreo(correo);
+    if (usuario) {
+      const token = await resetPasswordService.crear(usuario.usuario);
+      const url = `${URL_BASE}/restablecer-password.html?token=${token}`;
+      emailService
+        .enviarCorreo({
+          para: usuario.correo,
+          asunto: "Recupera tu contraseña de ActivoX",
+          html: `<p>Hola ${usuario.nombre || usuario.usuario},</p>
+                 <p>Pediste restablecer tu contraseña en ActivoX. Este enlace es valido por ${resetPasswordService.VIGENCIA_MINUTOS} minutos:</p>
+                 <p><a href="${url}">${url}</a></p>
+                 <p>Si no fuiste tú, ignora este correo: tu contraseña sigue igual.</p>`,
+        })
+        .catch((err) => console.error("Error enviando correo de recuperacion:", err.message));
+    }
+
+    res.json({ ok: true, mensaje: "Si el correo esta registrado, te llegara un enlace para restablecer tu contraseña." });
+  })
+);
+
+router.post(
+  "/restablecer-password",
+  wrap(async (req, res) => {
+    const { token, password } = req.body;
+    if (!token || !password) return res.status(400).json({ error: "token y password son obligatorios" });
+    if (password.length < 6) return res.status(400).json({ error: "La contraseña debe tener al menos 6 caracteres" });
+
+    const solicitud = await resetPasswordService.getVigente(token);
+    if (!solicitud) return res.status(400).json({ error: "El enlace no es valido o ya expiro. Pide uno nuevo." });
+
+    const actualizado = await usuariosService.actualizar(solicitud.usuario, { password });
+    if (!actualizado) return res.status(404).json({ error: "Usuario no encontrado" });
+
+    await resetPasswordService.marcarUsado(token);
+    res.json({ ok: true });
   })
 );
 
