@@ -96,7 +96,9 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
     final correo = correoCtrl.text.trim();
-    correoCtrl.dispose();
+    // No se destruye aqui: el dialogo sigue animando su cierre un par de
+    // frames mas y seguiria usando el controller (crash "used after being
+    // disposed"). Al ser de un solo uso, el recolector de basura se encarga.
     if (enviar != true || correo.isEmpty) return;
 
     try {
