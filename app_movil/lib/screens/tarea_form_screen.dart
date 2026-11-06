@@ -108,7 +108,7 @@ class _TareaFormScreenState extends State<TareaFormScreen> {
               onTap: _elegirFecha,
               child: InputDecorator(
                 decoration: const InputDecoration(labelText: 'Fecha', border: OutlineInputBorder()),
-                child: Text(_fechaFormateada),
+                child: Text('${fechaLegible(_fecha)} de ${_fecha.year}'),
               ),
             ),
             const SizedBox(height: 14),
@@ -121,6 +121,27 @@ class _TareaFormScreenState extends State<TareaFormScreen> {
               ].map((r) => DropdownMenuItem(value: r, child: Text(_etiquetaRecurrencia(r)))).toList(),
               onChanged: (v) => setState(() => _recurrencia = v ?? _recurrencia),
             ),
+            if (_recurrencia == 'semanal') ...[
+              const SizedBox(height: 14),
+              const Text('¿Qué día de la semana?'),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                children: [
+                  for (final dia in _diasDeLaSemana)
+                    ChoiceChip(
+                      label: Text(dia.$2),
+                      selected: _fecha.weekday == dia.$1,
+                      onSelected: (_) => setState(() => _fecha = proximoDiaSemana(dia.$1, DateTime.now())),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Te avisa cada ${nombreDiaSemana(_fecha)}, aunque no marques la anterior como hecha.',
+                style: const TextStyle(color: Colors.grey, fontSize: 12.5),
+              ),
+            ],
             const SizedBox(height: 14),
             TextFormField(
               controller: _diasAvisoCtrl,
@@ -150,6 +171,16 @@ class _TareaFormScreenState extends State<TareaFormScreen> {
     );
   }
 }
+
+const List<(int, String)> _diasDeLaSemana = [
+  (DateTime.monday, 'Lun'),
+  (DateTime.tuesday, 'Mar'),
+  (DateTime.wednesday, 'Mié'),
+  (DateTime.thursday, 'Jue'),
+  (DateTime.friday, 'Vie'),
+  (DateTime.saturday, 'Sáb'),
+  (DateTime.sunday, 'Dom'),
+];
 
 String _etiquetaRecurrencia(String r) {
   switch (r) {

@@ -111,8 +111,8 @@ function formatPagoLinea(pago) {
   const dias = venc.diff(hoy, "day");
   let cuando;
   if (dias < 0) cuando = `vencido hace ${Math.abs(dias)} dia(s)`;
-  else if (dias === 0) cuando = "vence HOY";
-  else if (dias === 1) cuando = "vence MAÑANA";
+  else if (dias === 0) cuando = `vence HOY (${pago.fecha_vencimiento})`;
+  else if (dias === 1) cuando = `vence MAÑANA (${pago.fecha_vencimiento})`;
   else cuando = `vence en ${dias} dias (${pago.fecha_vencimiento})`;
 
   return `#${pago.id} ${pago.nombre} - ${pago.empresa} (${pago.categoria}) - $${formatMoneda(pago.monto)} - ${cuando}`;

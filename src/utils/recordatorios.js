@@ -19,6 +19,43 @@ function siguienteFecha(fecha, recurrencia) {
 }
 
 /**
+ * Primera fecha de la recurrencia que no haya pasado todavia. Sirve para que
+ * "todos los jueves" siga avisando cada jueves aunque el anterior no se haya
+ * marcado como hecho. Sin recurrencia devuelve la misma fecha.
+ */
+function proximaFechaVigente(fecha, recurrencia, hoy = dayjs().format("YYYY-MM-DD")) {
+  let actual = dayjs(fecha).format("YYYY-MM-DD");
+  while (actual < hoy) {
+    const siguiente = siguienteFecha(actual, recurrencia);
+    if (!siguiente) return actual;
+    actual = siguiente;
+  }
+  return actual;
+}
+
+const DIAS_SEMANA = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+const MESES = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
+  "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+];
+
+/** Ej: "jueves 12 de noviembre". */
+function formatFechaLarga(fecha) {
+  const d = dayjs(fecha);
+  return `${DIAS_SEMANA[d.day()]} ${d.date()} de ${MESES[d.month()]}`;
+}
+
+/** Ej: "vence hoy, jueves 12 de noviembre". */
+function formatVencimiento(fecha, hoy = dayjs().format("YYYY-MM-DD")) {
+  const dias = dayjs(fecha).startOf("day").diff(dayjs(hoy).startOf("day"), "day");
+  const larga = formatFechaLarga(fecha);
+  if (dias < 0) return `venció el ${larga}`;
+  if (dias === 0) return `vence hoy, ${larga}`;
+  if (dias === 1) return `vence mañana, ${larga}`;
+  return `vence el ${larga}`;
+}
+
+/**
  * Si usuarioActual viene definido y NO es "jefe", solo puede ver lo que el
  * mismo creo. Sin usuarioActual (llamadas internas: scheduler, bot de
  * sistema) o con rol "jefe", no se filtra por dueno.
@@ -35,6 +72,9 @@ module.exports = {
   MESES_POR_RECURRENCIA,
   RECURRENCIAS,
   siguienteFecha,
+  proximaFechaVigente,
+  formatFechaLarga,
+  formatVencimiento,
   esVisibilidadRestringida,
   puedeFiltrarPorUsuario,
 };

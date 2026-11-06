@@ -125,7 +125,15 @@ class _TareasScreenState extends State<TareasScreen> {
       context: context,
       builder: (contextoDialogo) => AlertDialog(
         title: const Text('📌 Recordatorio'),
-        content: Text(tarea.nombre),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(tarea.nombre, style: const TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 6),
+            Text(tarea.resumenFecha),
+          ],
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(contextoDialogo, 'cerrar'), child: const Text('Cerrar')),
           TextButton(onPressed: () => Navigator.pop(contextoDialogo, 'editar'), child: const Text('Ver / editar')),
@@ -176,9 +184,7 @@ class _TareasScreenState extends State<TareasScreen> {
                     ),
                     title: Text(tarea.nombre),
                     subtitle: Text(
-                      'Vence ${tarea.fechaVencimiento}'
-                      '${tarea.recurrencia != 'ninguna' ? ' · se repite' : ''}'
-                      '${vencida ? ' · vencida' : ''}',
+                      '${tarea.resumenFecha}${vencida ? ' · vencida' : ''}',
                       style: vencida ? const TextStyle(color: Color(0xFFDC2626), fontWeight: FontWeight.w600) : null,
                     ),
                     trailing: IconButton(
@@ -194,6 +200,9 @@ class _TareasScreenState extends State<TareasScreen> {
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
+        // Pagos, Tareas y Usuarios conviven en la misma ruta: cada boton
+        // necesita su propia etiqueta o Flutter falla al abrir otra pantalla.
+        heroTag: 'fab_tareas',
         onPressed: () => _abrirFormulario(),
         icon: const Icon(Icons.add),
         label: const Text('Nueva tarea'),

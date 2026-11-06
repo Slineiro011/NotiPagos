@@ -9,6 +9,7 @@ const dispositivosService = require("./services/dispositivosService");
 const cuentasService = require("./services/cuentasService");
 const whatsapp = require("./whatsapp");
 const push = require("./push");
+const { formatVencimiento } = require("./utils/recordatorios");
 
 async function revisarPagos(cuentaId, hoy) {
   const pendientes = await paymentsService.getPendientes(undefined, undefined, undefined, cuentaId);
@@ -86,7 +87,7 @@ async function revisarTareas(cuentaId, hoy) {
 
     const resultadoPush = await push.enviarATokens(tokensDestino, {
       titulo: "📌 Recordatorio",
-      cuerpo: tarea.nombre,
+      cuerpo: `${tarea.nombre}: ${formatVencimiento(tarea.fecha_vencimiento)}`,
       datos: { tareaId: String(tarea.id) },
       alarma: false,
     });

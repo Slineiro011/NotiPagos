@@ -1,3 +1,22 @@
+const List<String> _diasSemana = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
+const List<String> _meses = [
+  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
+  'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+];
+
+/// Ej: "jueves".
+String nombreDiaSemana(DateTime fecha) => _diasSemana[fecha.weekday - 1];
+
+/// Ej: "jueves 12 de noviembre".
+String fechaLegible(DateTime fecha) => '${nombreDiaSemana(fecha)} ${fecha.day} de ${_meses[fecha.month - 1]}';
+
+/// Primera fecha desde [desde] (incluida) que cae en [diaSemana]
+/// (DateTime.monday..DateTime.sunday).
+DateTime proximoDiaSemana(int diaSemana, DateTime desde) {
+  final base = DateTime(desde.year, desde.month, desde.day);
+  return DateTime(base.year, base.month, base.day + (diaSemana - base.weekday + 7) % 7);
+}
+
 class Tarea {
   final int id;
   final String nombre;
@@ -43,6 +62,19 @@ class Tarea {
       'dias_aviso': diasAviso,
       'notas': notas,
     };
+  }
+
+  /// Ej: "jueves 12 de noviembre".
+  String get fechaTexto => fechaLegible(DateTime.parse(fechaVencimiento));
+
+  /// Texto de la lista y del recordatorio. Ej: "Cada jueves · próximo: jueves
+  /// 12 de noviembre" o "Vence martes 3 de marzo".
+  String get resumenFecha {
+    if (recurrencia == 'semanal') {
+      return 'Cada ${nombreDiaSemana(DateTime.parse(fechaVencimiento))} · próximo: $fechaTexto';
+    }
+    if (recurrencia != 'ninguna') return 'Próximo: $fechaTexto · se repite';
+    return 'Vence $fechaTexto';
   }
 
   int get diasRestantes {
