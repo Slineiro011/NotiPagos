@@ -127,6 +127,11 @@ async function eliminarPropio(usuario) {
         "DELETE FROM borradores_pago WHERE numero IN (SELECT telefono FROM usuarios WHERE cuenta_id = $1 AND telefono IS NOT NULL)",
         [cuenta]
       );
+      await client.query(
+        "DELETE FROM avisos_tareas_enviados WHERE tarea_id IN (SELECT id FROM tareas WHERE cuenta_id = $1)",
+        [cuenta]
+      );
+      await client.query("DELETE FROM tareas WHERE cuenta_id = $1", [cuenta]);
       await client.query("DELETE FROM historial_pagos WHERE cuenta_id = $1", [cuenta]);
       await client.query("DELETE FROM pagos WHERE cuenta_id = $1", [cuenta]);
       await client.query("DELETE FROM configuracion WHERE cuenta_id = $1", [cuenta]);
