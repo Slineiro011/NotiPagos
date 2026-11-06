@@ -69,8 +69,8 @@ async function eliminar(usuario) {
 /**
  * Renombra el identificador de inicio de sesion de un usuario y propaga el
  * cambio a las tablas que lo referencian por valor (no por id): los pagos
- * que creo, su historial y sus dispositivos registrados. Todo en una sola
- * transaccion para que nunca quede a medias.
+ * y tareas que creo, su historial y sus dispositivos registrados. Todo en
+ * una sola transaccion para que nunca quede a medias.
  */
 async function cambiarUsuario(usuarioActual, nuevoUsuario) {
   const client = await pool.connect();
@@ -87,6 +87,7 @@ async function cambiarUsuario(usuarioActual, nuevoUsuario) {
     }
     await client.query("UPDATE pagos SET creado_por = $2 WHERE creado_por = $1", [usuarioActual, nuevoUsuario]);
     await client.query("UPDATE historial_pagos SET creado_por = $2 WHERE creado_por = $1", [usuarioActual, nuevoUsuario]);
+    await client.query("UPDATE tareas SET creado_por = $2 WHERE creado_por = $1", [usuarioActual, nuevoUsuario]);
     await client.query("UPDATE dispositivos SET usuario = $2 WHERE usuario = $1", [usuarioActual, nuevoUsuario]);
     await client.query("COMMIT");
     return rows[0];
