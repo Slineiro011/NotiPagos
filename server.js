@@ -15,6 +15,9 @@ const { requireAuth, requireJefe, requireSuscripcionActiva } = require("./src/au
 const scheduler = require("./src/scheduler");
 
 const app = express();
+// Render pone un proxy delante: sin esto, todos los clientes tendrian la misma
+// IP y los limites de intentos de /api/auth se compartirian entre todos.
+app.set("trust proxy", true);
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());

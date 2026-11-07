@@ -1,4 +1,5 @@
 const express = require("express");
+const { rateLimit } = require("express-rate-limit");
 const usuariosService = require("../services/usuariosService");
 const cuentasService = require("../services/cuentasService");
 const comprasService = require("../services/comprasService");
@@ -7,6 +8,28 @@ const emailService = require("../services/emailService");
 const { generarToken, requireAuth } = require("../auth");
 
 const URL_BASE = process.env.URL_BASE || "https://notipagos.onrender.com";
+
+// Limites por IP. Solo cuentan los intentos fallidos en el login, para no
+// bloquear a una oficina entera que comparte la misma IP.
+function limitePorIp({ max, ventanaMinutos, soloFallidos = false }) {
+  return rateLimit({
+    windowMs: ventanaMinutos * 60 * 1000,
+    limit: max,
+    skipSuccessfulRequests: soloFallidos,
+    standardHeaders: true,
+    legacyHeaders: false,
+    // server.js confia en el proxy de Render para obtener la IP real.
+    validate: { trustProxy: false },
+    message: { error: "Demasiados intentos. Espera un momento y vuelve a intentarlo." },
+  });
+}
+const limiteLogin = limitePorIp({ max: 20, ventanaMinutos: 15, soloFallidos: true });
+const limiteRegistro = limitePorIp({ max: 10, ventanaMinutos: 60 });
+const limiteOlvidePassword = limitePorIp({ max: 10, ventanaMinutos: 60 });
+
+// Recuperaciones por usuario en una hora: a diferencia del limite por IP, no
+// se puede evadir, asi que evita que le llenen el correo a una persona.
+const MAX_RECUPERACIONES_POR_HORA = 3;
 
 const router = express.Router();
 
@@ -19,29 +42,43 @@ const CORREO_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 router.post(
   "/registro",
+  limiteRegistro,
   wrap(async (req, res) => {
     const { usuario, password, nombre, telefono, correo } = req.body;
-    if (!usuario || !password || !correo) {
-      return res.status(400).json({ error: "usuario, password y correo son obligatorios" });
+    // El correo es obligatorio solo en la app (desde la 1.11.0): la 1.10.0 no
+    // lo manda, y exigirlo aqui le romperia el registro.
+    if (!usuario || !password) {
+      return res.status(400).json({ error: "usuario y password son obligatorios" });
     }
     if (password.length < 6) {
       return res.status(400).json({ error: "La contraseña debe tener al menos 6 caracteres" });
     }
-    if (!CORREO_VALIDO.test(correo)) {
+    if (correo && !CORREO_VALIDO.test(correo)) {
       return res.status(400).json({ error: "El correo no es valido" });
     }
     const existente = await usuariosService.getByUsuario(usuario);
     if (existente) return res.status(409).json({ error: "Ya existe un usuario con ese nombre" });
     const correoExistente = await usuariosService.getByCorreo(correo);
     if (correoExistente) return res.status(409).json({ error: "Ya existe una cuenta con ese correo" });
+    const telefonoExistente = await usuariosService.getByTelefono(telefono);
+    if (telefonoExistente) return res.status(409).json({ error: "Ya existe una cuenta con ese número de WhatsApp" });
 
     const cuenta = await cuentasService.crear(nombre ? `Empresa de ${nombre}` : "Mi empresa");
-    const creado = await usuariosService.crear(usuario, nombre, password, {
-      rol: "jefe",
-      telefono,
-      correo,
-      cuentaId: cuenta.id,
-    });
+    let creado;
+    try {
+      creado = await usuariosService.crear(usuario, nombre, password, {
+        rol: "jefe",
+        telefono,
+        correo,
+        cuentaId: cuenta.id,
+      });
+    } catch (err) {
+      // Sin esto quedaria una cuenta vacia sin ningun usuario.
+      await cuentasService.eliminar(cuenta.id);
+      // 23505: otro registro simultaneo tomo el mismo correo o telefono.
+      if (err.code === "23505") return res.status(409).json({ error: "Ya existe una cuenta con esos datos" });
+      throw err;
+    }
 
     const token = generarToken(creado);
     res.status(201).json({
@@ -112,6 +149,7 @@ router.post(
 
 router.post(
   "/login",
+  limiteLogin,
   wrap(async (req, res) => {
     const { usuario, password } = req.body;
     if (!usuario || !password) {
@@ -185,19 +223,22 @@ router.put(
 // registrados.
 router.post(
   "/olvide-password",
+  limiteOlvidePassword,
   wrap(async (req, res) => {
     const { correo } = req.body;
     if (!correo) return res.status(400).json({ error: "correo es obligatorio" });
 
     const usuario = await usuariosService.getByCorreo(correo);
-    if (usuario) {
+    const puedeEnviar =
+      usuario && (await resetPasswordService.contarRecientes(usuario.usuario)) < MAX_RECUPERACIONES_POR_HORA;
+    if (puedeEnviar) {
       const token = await resetPasswordService.crear(usuario.usuario);
       const url = `${URL_BASE}/restablecer-password.html?token=${token}`;
       emailService
         .enviarCorreo({
           para: usuario.correo,
           asunto: "Recupera tu contraseña de ActivoX",
-          html: `<p>Hola ${usuario.nombre || usuario.usuario},</p>
+          html: `<p>Hola ${emailService.escaparHtml(usuario.nombre || usuario.usuario)},</p>
                  <p>Pediste restablecer tu contraseña en ActivoX. Este enlace es valido por ${resetPasswordService.VIGENCIA_MINUTOS} minutos:</p>
                  <p><a href="${url}">${url}</a></p>
                  <p>Si no fuiste tú, ignora este correo: tu contraseña sigue igual.</p>`,

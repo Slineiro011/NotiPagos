@@ -1,5 +1,15 @@
 const REMITENTE = "ActivoX <noreply@smartlatinoamerica.org>";
 
+/** Para meter texto escrito por el usuario (ej. su nombre) en el HTML de un correo. */
+function escaparHtml(texto) {
+  return String(texto)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 /** Manda un correo con la API de Resend. Si no hay API key configurada, solo avisa por consola (no rompe el flujo). */
 async function enviarCorreo({ para, asunto, html }) {
   const apiKey = process.env.RESEND_API_KEY;
@@ -23,4 +33,4 @@ async function enviarCorreo({ para, asunto, html }) {
   }
 }
 
-module.exports = { enviarCorreo };
+module.exports = { enviarCorreo, escaparHtml };

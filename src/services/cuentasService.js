@@ -12,6 +12,10 @@ async function crear(nombre) {
   return rows[0];
 }
 
+async function eliminar(id) {
+  await pool.query("DELETE FROM cuentas WHERE id = $1", [id]);
+}
+
 async function getById(id) {
   const { rows } = await pool.query("SELECT * FROM cuentas WHERE id = $1", [id]);
   return rows[0] || null;
@@ -98,6 +102,7 @@ async function desactivarSuscripcion(cuentaId) {
 
 module.exports = {
   crear,
+  eliminar,
   getById,
   getConAccesoActualizado,
   getPorCompra,

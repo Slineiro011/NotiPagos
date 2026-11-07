@@ -28,4 +28,13 @@ async function marcarUsado(token) {
   await pool.query("UPDATE restablecimientos_password SET usado = true WHERE token = $1", [token]);
 }
 
-module.exports = { VIGENCIA_MINUTOS, crear, getVigente, marcarUsado };
+/** Cuantos enlaces se le han generado a `usuario` en la ultima hora. */
+async function contarRecientes(usuario) {
+  const { rows } = await pool.query(
+    "SELECT COUNT(*)::int AS n FROM restablecimientos_password WHERE usuario = $1 AND creado_en > now() - interval '1 hour'",
+    [usuario]
+  );
+  return rows[0].n;
+}
+
+module.exports = { VIGENCIA_MINUTOS, crear, getVigente, marcarUsado, contarRecientes };
